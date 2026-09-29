@@ -1,0 +1,166 @@
+// Data model — see GODFATHER §4 for the email state machine.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String           @id @default(cuid())
+  googleId  String           @unique
+  email     String           @unique
+  name      String
+  avatarUrl String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  campaigns Campaign[]
+  slack     SlackConnection?
+}
+
+/// One Slack workspace/channel per user (tenant = user).
+model SlackConnection {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId        String
+  teamName      String
+  channelId     String
+  channelName   String
+  webhookUrlEnc String
+  botTokenEnc   String?
+  isValid       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// Ethereal SMTP accounts used to send.
+model Sender {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  displayName String
+  smtpHost    String  @default("smtp.ethereal.email")
+  smtpPort    Int     @default(587)
+  smtpUser    String
+  smtpPassEnc String
+  hourlyLimit Int?
+  isActive    Boolean @default(true)
+  emails      Email[]
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject         String
+  body            String
+  startAt         DateTime
+  delayBetweenMs  Int
+  hourlyLimit     Int
+  senderStrategy  SenderStrategy @default(ROUND_ROBIN)
+  status          CampaignStatus @default(ACTIVE)
+  totalRecipients Int
+  createdAt       DateTime       @default(now())
+  emails          Email[]
+
+  @@index([userId, createdAt])
+}
+
+model Email {
+  id               String      @id @default(cuid()) /// == BullMQ jobId
+  campaignId       String
+  campaign         Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId           String
+  senderId         String
+  sender           Sender      @relation(fields: [senderId], references: [id])
+  toEmail          String
+  toName           String?
+  vars             Json?
+  subject          String
+  body             String
+  sequence         Int
+  scheduledAt      DateTime
+  nextAttemptAt    DateTime
+  status           EmailStatus @default(SCHEDULED)
+  attempts         Int         @default(0)
+  rateLimitedCount Int         @default(0)
+  messageId        String?     @unique
+  previewUrl       String?
+  sentAt           DateTime?
+  failedAt         DateTime?
+  lastError        String?
+  lockedAt         DateTime?
+  /// When the worker handed this email to SMTP (throttle spacing is measured here, not at sentAt).
+  dispatchedAt     DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  events           EmailEvent[]
+
+  @@unique([campaignId, toEmail])
+  @@index([userId, status, nextAttemptAt])
+  @@index([userId, status, updatedAt])
+  @@index([status, lockedAt])
+}
+
+/// Status history of an email (detail timeline + analytics). Append-only.
+model EmailEvent {
+  id      String         @id @default(cuid())
+  emailId String
+  email   Email          @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  userId  String
+  type    EmailEventType
+  at      DateTime       @default(now())
+  meta    Json?
+
+  @@index([emailId, at])
+  @@index([userId, type, at])
+}
+
+/// Audit trail of rate-limit hits; also dedupes Slack notifications per window.
+model RateLimitEvent {
+  id        String   @id @default(cuid())
+  senderId  String
+  userId    String
+  scope     String
+  windowKey String
+  hitAt     DateTime @default(now())
+  notified  Boolean  @default(false)
+
+  @@unique([senderId, userId, scope, windowKey])
+}
+
+enum EmailStatus {
+  SCHEDULED
+  RATE_LIMITED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum EmailEventType {
+  SCHEDULED
+  RATE_LIMITED
+  SEND_ERROR
+  SENT
+  FAILED
+  RETRIED
+  CANCELLED
+  PAUSED
+  RESUMED
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  COMPLETED
+}
+
+enum SenderStrategy {
+  ROUND_ROBIN
+  FIXED
+}

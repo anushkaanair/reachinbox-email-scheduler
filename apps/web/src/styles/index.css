@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/* Design tokens — provisional until the Figma export lands in design/tokens.md (GODFATHER §9.0). */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #e9f8f0;
+  --color-brand-100: #c9eedb;
+  --color-brand-500: #0b9a5b;
+  --color-brand-600: #08844d;
+  --color-brand-700: #066b3e;
+
+  --color-ink: #0f172a;
+  --color-muted: #5f6b7c; /* ≥ 4.5:1 on canvas and surface (was #64748b: 4.47 on canvas) */
+  --color-line: #e5e7eb;
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+
+  /* Status series for charts/progress (validated with the dataviz palette checker; the amber's
+     low contrast is relieved by text legends + a table view). */
+  --color-st-sent: #0b9a5b;
+  --color-st-deferred: #e0a100;
+  --color-st-failed: #b42318;
+  --color-st-pending: #94a3b8;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}

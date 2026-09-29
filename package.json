@@ -1,0 +1,57 @@
+{
+  "name": "reachinbox-scheduler",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Production-grade email scheduler (BullMQ + Redis + Postgres) with a React dashboard",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:shared": "npm run build -w @ri/shared",
+    "postinstall": "npm run build:shared && npm run db:generate -w @ri/api",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @ri/api",
+    "dev:api": "npm run dev -w @ri/api",
+    "dev:worker": "npm run dev:worker -w @ri/api",
+    "dev:web": "npm run dev -w @ri/web",
+    "dev": "npm run build:shared && concurrently -n api,worker,web -c blue,magenta,green \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
+    "build": "npm run build:shared && npm run build -w @ri/api && npm run build -w @ri/web",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check:no-cron": "node scripts/check-no-cron.mjs",
+    "format": "prettier --write .",
+    "dev:demo": "dotenv -e .env.demo.example -- npm run dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "setup": "node scripts/setup.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^9.1.0",
+    "deepmerge-ts": "^8.0.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.71.0"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true,
+    "msgpackr-extract@3.0.4": true
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
+  }
+}

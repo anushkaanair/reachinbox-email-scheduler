@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ri
+          POSTGRES_PASSWORD: ri
+          POSTGRES_DB: reachinbox
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd "pg_isready -U ri" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6380:6379']
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd "curl -fs http://localhost:9200/_cluster/health" --health-interval 10s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://ri:ri@localhost:5434/reachinbox
+      REDIS_URL: redis://localhost:6380
+      ELASTICSEARCH_URL: http://localhost:9200
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+      ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci # postinstall builds @ri/shared and generates the Prisma client
+      - name: Hard constraint — no cron
+        run: npm run check:no-cron
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx prisma migrate deploy
+        working-directory: apps/api
+      - run: npm test
+      - run: npm run build
+      - name: Dependency audit
+        run: npm audit --audit-level=high

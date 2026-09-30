@@ -1,6 +1,6 @@
 # Handoff — ReachInbox Email Scheduler
 
-Read this first if you are picking the project up in a new session or account. Last updated 2026-09-30.
+Read this first if you are picking the project up in a new session or account. Last updated 2026-09-30 (after the Figma restyle and ReachInbox-parity work).
 
 ## 1. What this is
 
@@ -31,7 +31,7 @@ Hiring assignment for ReachInbox.ai (Outbox Labs): an email job scheduler + dash
 | `665156a` | Compose tools (preview + test send, forecast, do-not-contact, business hours, CSV export, bulk retry), **Ask Inbox** assistant, light/dark themes |
 | `1636436` | Spam checker, spintax, send jitter |
 
-### Built and verified, **NOT committed** (sender health + warm-up)
+### Earlier: sender health + warm-up (already committed, see git log)
 Run `git status` — these are the pending files:
 - `packages/shared/src/senders.ts` (+ `api.ts`, `index.ts`): warm-up maths, `senderHealth`, `isAuthError`, `isHardBounce`
 - `apps/api/prisma/schema.prisma` + migration `20260930060944_sender_health_warmup/`
@@ -45,11 +45,19 @@ Run `git status` — these are the pending files:
 **Suggested commit message:** `Add sender health, warm-up ramp and automatic sender pause` (then push).
 
 ### Quality gate (last run, all green)
-- 277 tests: 263 API + 14 web
+- 349 tests: 322 API + 27 web
 - Typecheck 0 errors, ESLint clean, build OK (main bundle 467 kB, no warning), `npm audit` 0 vulnerabilities, no-cron check passes
 - axe accessibility: 0 violations in light and dark on every page, including Senders
 
 Re-run: `npm run typecheck && npx eslint . && npm test && npm run check:no-cron && npm run build && npm audit`
+
+### Branch `feature/reachinbox-parity` (local, not pushed unless the owner says so)
+Everything below is on this branch; `main` is still the submitted version.
+- **Figma-faithful UI** (from the owner's screenshots; the Figma URL itself can't be opened by our tools): light default, pixel "ONB" logo, sidebar account card, flat email rows with orange time pill and star, full-page email view, Compose with Send Later popover, Figma login card.
+- **Email + password login** (`modules/auth/password.ts`), Google sign-in links an existing password account and clears the password.
+- **Email accounts overhaul**, **onboarding + tour**, **bounce protection** (see README "Beyond the brief").
+- Migrations added: `sender_accounts`, `user_onboarding`, `campaign_bounce_protection`, `password_auth`, `email_preview_star`.
+- Decisions: Figma is the base UI, extras live under MORE in the sidebar; onboarding is opt-in (login must land on the dashboard).
 
 ## 4. What is left (owner-side; nothing here can be finished without the owner)
 

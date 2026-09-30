@@ -239,7 +239,7 @@ We expect:
 | Not verifiable by us | **Pixel match with the Figma** — the file could not be opened by our tooling; the UI follows the layout the brief describes |
 | Still to do (owner) | Record the ≤ 5-min demo video (script in `docs/DEMO_SCRIPT.md`); invite `Mitrajit` and `Yadav036` to the repo |
 | Beyond the brief | **30+ additional features** (listed below) |
-| Quality | **277 automated tests** (263 API against real Postgres/Redis/Elasticsearch + 14 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations in both themes · CI · no cron (enforced by a CI check) |
+| Quality | **349 automated tests** (322 API against real Postgres/Redis/Elasticsearch + 27 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations on every page in the light theme (dark not re-audited since the Figma restyle) · CI · no cron (enforced by a CI check) |
 
 Evidence for every measured claim below is in `docs/VERIFICATION.md`.
 
@@ -316,9 +316,9 @@ Status key: ✅ built and verified · 🟨 built, live check pending (needs cred
 
 | Requirement | Status | How it's met |
 |---|---|---|
-| Match the Figma | 🟨 | Layout follows the brief (sidebar, header, tabs, compose). The Figma file couldn't be opened by our tooling, so a pixel comparison hasn't been done |
-| Real Google OAuth, redirect to dashboard | 🟨 | Passport Google strategy with CSRF state cookie; needs `GOOGLE_CLIENT_ID/SECRET` for a live login |
-| Header: name, email, avatar; logout | ✅ | Header with avatar (initials fallback) and a Log out menu |
+| Match the Figma | 🟨 | Rebuilt from the owner's Figma screenshots (login, Scheduled, Sent, email view, Compose + Send Later). The Figma URL couldn't be opened by our tooling, so there has been no pixel-level overlay; the rich-text toolbar, attachments and archive icons in the frames are not built |
+| Real Google OAuth, redirect to dashboard | 🟨 | Passport Google strategy with CSRF state cookie; needs `GOOGLE_CLIENT_ID/SECRET` for a live login. Email + password sign-in also exists (Figma shows it) and lands on the dashboard too |
+| Name, email, avatar; logout | ✅ | The Figma account card at the top of the sidebar (avatar with initials fallback) with a Log out menu; a compact header on phones |
 | Scheduled Emails and Sent Emails tabs; "Compose New Email" button | ✅ | Yes |
 | Compose: subject, body, CSV/text upload with count, start time, delay, hourly limit, Schedule | ✅ | Yes — plus a detailed upload report (valid / invalid / duplicates) |
 | Scheduled table: email, subject, scheduled time, status; loading and empty states | ✅ | Yes (skeleton rows, empty state with a call to action) |
@@ -374,6 +374,14 @@ Status key: ✅ built and verified · 🟨 built, live check pending (needs cred
 24. **Analytics page** — sent / failed / deferred / pending / delivery-rate tiles, an hourly chart (with a table view) and per-sender quota meters.
 25. **Ask Inbox assistant** — Cmd+K palette and a docked side panel. Answers questions from your own data ("how many failed today?", "which sender is closest to its limit?") and carries out commands ("pause the northwind campaign") **only after you press Confirm**. Works offline with no API key; every change is audited.
 
+### Added after the Figma screenshots arrived
+32. **Figma-faithful UI** — login card, sidebar account card, flat email rows with time pill and star, full-page email view, Compose with Send Later.
+33. **Email + password login** — scrypt, throttled, one generic failure message; Google sign-in links the account and clears the password.
+34. **Email accounts overhaul** — connect Google/Microsoft/SMTP (login tested first), CSV import with mapping and per-row report, DNS check, per-account settings, bulk actions, reconnect/acknowledge.
+35. **Onboarding, checklist and tour** — opt-in; the checklist is computed from real data.
+36. **Bounce protection** — a campaign pauses itself past a bounce threshold; event-driven, no cron.
+37. **Star and filters** on both email lists.
+
 ### Experience
 26. **Light and dark themes** — dark has a "space" backdrop; or follow the system setting.
 27. **Accessible** — WCAG 2.1 AA, 0 axe violations on every page in both themes; works on phones.
@@ -423,7 +431,7 @@ Details and commands: `docs/VERIFICATION.md`.
 npm install
 npm run setup      # env, Docker services, migrations, 3 Ethereal senders, search index
 npm run dev        # API :4000 · worker · web :5173   (or: npm run dev:demo for 1-minute hours)
-npm test           # 277 tests
+npm test           # 349 tests
 ```
 
 - Queue dashboard: `http://localhost:4000/admin/queues`

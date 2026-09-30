@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { LeadSchema, MAX_LEADS_PER_CAMPAIGN } from './campaign.js';
+import { MAX_SEND_LAYERS, SendLayerSchema } from './sendWindow.js';
 
 /** A saved compose form. Client-shaped on purpose: it restores exactly what the person had on screen. */
 export const MAX_DRAFTS = 20;
@@ -10,6 +11,8 @@ export const DraftRulesSchema = z.object({
   endHour: z.number().int().min(1).max(24),
   timezone: z.string().min(1).max(64),
   weekdaysOnly: z.boolean(),
+  /** Day-specific hours (absent in drafts saved before they existed). */
+  layers: z.array(SendLayerSchema).max(MAX_SEND_LAYERS).optional(),
   skipOn: z.boolean(),
   skipDays: z.number().int().min(1).max(365),
   bounceOn: z.boolean(),

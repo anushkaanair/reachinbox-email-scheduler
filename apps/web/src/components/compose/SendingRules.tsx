@@ -1,9 +1,10 @@
 import { ShieldCheck } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { DEFAULT_BOUNCE_PROTECTION, type SendWindow } from '@ri/shared';
+import { DEFAULT_BOUNCE_PROTECTION, MAX_SEND_LAYERS, type SendLayer, type SendWindow } from '@ri/shared';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input, Select } from '@/components/ui/Field';
+import { cn } from '@/lib/cn';
 
 export type Rules = {
   hoursOn: boolean;
@@ -11,6 +12,8 @@ export type Rules = {
   endHour: number;
   timezone: string;
   weekdaysOnly: boolean;
+  /** Day-specific hours that replace the main hours on the days they list. */
+  layers: SendLayer[];
   skipOn: boolean;
   skipDays: number;
   /** Pause the campaign by itself when too many addresses bounce (on by default). */
@@ -32,6 +35,7 @@ export const defaultRules = (): Rules => ({
   endHour: 17,
   timezone: browserZone(),
   weekdaysOnly: true,
+  layers: [],
   skipOn: false, // off by default so re-sending the same test file isn't a surprise; one tick turns it on
   skipDays: 30,
   bounceOn: true,
@@ -42,9 +46,18 @@ export const defaultRules = (): Rules => ({
 export const rulesToBounceProtection = (r: Rules) => ({ thresholdPercent: r.bounceOn ? r.bounceThreshold : 0, minSends: DEFAULT_BOUNCE_PROTECTION.minSends });
 
 export const rulesToSendWindow = (r: Rules): SendWindow | undefined =>
-  r.hoursOn ? { startHour: r.startHour, endHour: r.endHour, timezone: r.timezone, weekdaysOnly: r.weekdaysOnly } : undefined;
+  r.hoursOn ? { startHour: r.startHour, endHour: r.endHour, timezone: r.timezone, weekdaysOnly: r.weekdaysOnly, ...(r.layers.length ? { layers: r.layers } : {}) } : undefined;
 
-export const hoursError = (r: Rules) => (r.hoursOn && r.endHour <= r.startHour ? 'Closing time must be after opening time' : undefined);
+export const hoursError = (r: Rules) => {
+  if (!r.hoursOn) return undefined;
+  if (r.endHour <= r.startHour) return 'Closing time must be after opening time';
+  if (r.layers.some((l) => l.days.length === 0)) return 'Pick at least one day for each day-specific set of hours';
+  if (r.layers.some((l) => l.endHour <= l.startHour)) return 'Closing time must be after opening time for each day-specific set of hours';
+  return undefined;
+};
+
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const COMMON_ZONES = ['UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney'];
 
@@ -96,6 +109,57 @@ export function SendingRules({ value, onChange, dncCount }: { value: Rules; onCh
             ))}
           </Select>
           <Checkbox label="Weekdays only (Mon–Fri)" checked={value.weekdaysOnly} onChange={(e) => set({ weekdaysOnly: e.target.checked })} />
+
+          <div className="flex flex-col gap-3" role="group" aria-label="Day-specific hours">
+            {value.layers.map((layer, i) => {
+              const taken = new Set(value.layers.flatMap((l, j) => (j === i ? [] : l.days)));
+              const patch = (p: Partial<SendLayer>) => set({ layers: value.layers.map((l, j) => (j === i ? { ...l, ...p } : l)) });
+              return (
+                <fieldset key={i} className="rounded-lg border border-line p-3">
+                  <legend className="px-1 text-xs font-medium text-muted">Day-specific hours</legend>
+                  <div className="flex flex-wrap gap-1" role="group" aria-label="Days">
+                    {DAY_LETTERS.map((letter, d) => {
+                      const on = layer.days.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          aria-pressed={on}
+                          aria-label={DAY_NAMES[d]}
+                          disabled={taken.has(d)}
+                          onClick={() => patch({ days: on ? layer.days.filter((x) => x !== d) : [...layer.days, d].sort() })}
+                          className={cn('size-8 rounded-full border text-xs font-medium transition-colors disabled:opacity-40', on ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-line text-muted hover:text-ink')}
+                        >
+                          {letter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <Select label="From" value={layer.startHour} onChange={(e) => patch({ startHour: Number(e.target.value) })}>
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>{hourLabel(h)}</option>
+                      ))}
+                    </Select>
+                    <Select label="Until" value={layer.endHour} onChange={(e) => patch({ endHour: Number(e.target.value) })}>
+                      {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
+                        <option key={h} value={h}>{hourLabel(h)}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <button type="button" onClick={() => set({ layers: value.layers.filter((_, j) => j !== i) })} className="mt-2 text-xs text-muted underline-offset-2 hover:text-danger hover:underline">
+                    Remove
+                  </button>
+                </fieldset>
+              );
+            })}
+            {value.layers.length < MAX_SEND_LAYERS && value.layers.flatMap((l) => l.days).length < 7 && (
+              <button type="button" onClick={() => set({ layers: [...value.layers, { days: [], startHour: value.startHour, endHour: value.endHour }] })} className="w-fit text-sm font-medium text-brand-600 hover:underline">
+                + Add day-specific hours
+              </button>
+            )}
+            <p className="text-xs text-muted">For example, Fridays 9–1, or Saturday mornings. A day with its own hours uses those instead, even if it isn’t a weekday.</p>
+          </div>
         </div>
       )}
 

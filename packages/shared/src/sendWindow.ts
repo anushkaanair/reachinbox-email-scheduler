@@ -15,6 +15,22 @@ export const isValidTimeZone = (tz: string): boolean => {
   }
 };
 
+/**
+ * Day-specific hours on top of the base window: "Fridays close at 1 PM", "Saturdays 10–12". A layer applies to
+ * the weekdays it lists (0 = Sunday … 6 = Saturday) and replaces the base hours for them; it also opens days the
+ * base would skip (weekdays only), so a Saturday layer makes Saturday a sending day.
+ */
+export const SendLayerSchema = z
+  .object({
+    days: z.array(z.number().int().min(0).max(6)).min(1, 'Pick at least one day').max(7),
+    startHour: z.number().int().min(0).max(23),
+    endHour: z.number().int().min(1).max(24),
+  })
+  .refine((l) => l.endHour > l.startHour, { message: 'End hour must be after the start hour', path: ['endHour'] });
+export type SendLayer = z.infer<typeof SendLayerSchema>;
+
+export const MAX_SEND_LAYERS = 7;
+
 export const SendWindowSchema = z
   .object({
     /** Local hour the window opens, 0–23. */
@@ -23,8 +39,11 @@ export const SendWindowSchema = z
     endHour: z.number().int().min(1).max(24),
     timezone: z.string().min(1).max(64).refine(isValidTimeZone, 'Unknown time zone'),
     weekdaysOnly: z.boolean().default(true),
+    /** Absent = no day-specific hours (how every earlier campaign was stored). */
+    layers: z.array(SendLayerSchema).max(MAX_SEND_LAYERS).optional(),
   })
-  .refine((w) => w.endHour > w.startHour, { message: 'End hour must be after the start hour', path: ['endHour'] });
+  .refine((w) => w.endHour > w.startHour, { message: 'End hour must be after the start hour', path: ['endHour'] })
+  .refine((w) => { const days = (w.layers ?? []).flatMap((l) => l.days); return new Set(days).size === days.length; }, { message: 'A day can only be in one set of day-specific hours', path: ['layers'] });
 export type SendWindow = z.infer<typeof SendWindowSchema>;
 
 type Parts = { year: number; month: number; day: number; hour: number; minute: number; second: number; weekday: number };
@@ -82,9 +101,17 @@ export function zonedTimeToUtc(year: number, month: number, day: number, hour: n
 const weekdayOf = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 const dayAllowed = (w: SendWindow, weekday: number) => !w.weekdaysOnly || (weekday !== 0 && weekday !== 6);
 
+/** The hours that apply on a weekday: its layer if it has one, else the base window (null = no sending that day). */
+export function hoursFor(w: SendWindow, weekday: number): { start: number; end: number } | null {
+  const layer = w.layers?.find((l) => l.days.includes(weekday));
+  if (layer) return { start: layer.startHour, end: layer.endHour };
+  return dayAllowed(w, weekday) ? { start: w.startHour, end: w.endHour } : null;
+}
+
 export function isInSendWindow(ms: number, w: SendWindow): boolean {
   const p = zonedParts(ms, w.timezone);
-  return dayAllowed(w, p.weekday) && p.hour >= w.startHour && p.hour < w.endHour;
+  const h = hoursFor(w, p.weekday);
+  return h !== null && p.hour >= h.start && p.hour < h.end;
 }
 
 /** `ms` itself if it is inside the window, otherwise the next moment the window opens. */
@@ -92,10 +119,10 @@ export function nextSendWindowStart(ms: number, w: SendWindow): number {
   if (isInSendWindow(ms, w)) return ms;
   const p = zonedParts(ms, w.timezone);
   for (let k = 0; k <= 10; k++) {
-    const open = zonedTimeToUtc(p.year, p.month, p.day + k, w.startHour, w.timezone);
-    if (open < ms) continue;
-    const day = zonedParts(open, w.timezone);
-    if (dayAllowed(w, day.weekday)) return open;
+    const h = hoursFor(w, weekdayOf(p.year, p.month, p.day + k));
+    if (!h) continue;
+    const open = zonedTimeToUtc(p.year, p.month, p.day + k, h.start, w.timezone);
+    if (open >= ms) return open;
   }
   return ms; // unreachable for sane windows; never block sending on a bug
 }
@@ -109,10 +136,10 @@ export function sendWindowIntervals(fromMs: number, toMs: number, w: SendWindow)
     const y = first.year;
     const m = first.month;
     const d = first.day + k;
-    const wd = weekdayOf(y, m, d);
-    if (!dayAllowed(w, wd)) continue;
-    const open = zonedTimeToUtc(y, m, d, w.startHour, w.timezone);
-    const close = zonedTimeToUtc(y, m, d, w.endHour, w.timezone);
+    const h = hoursFor(w, weekdayOf(y, m, d));
+    if (!h) continue;
+    const open = zonedTimeToUtc(y, m, d, h.start, w.timezone);
+    const close = zonedTimeToUtc(y, m, d, h.end, w.timezone);
     const a = Math.max(open, fromMs);
     const b = Math.min(close, toMs);
     if (b > a) out.push([a, b]);

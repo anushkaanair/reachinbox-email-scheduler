@@ -8,7 +8,7 @@ Re-run any of it yourself with the commands shown.
 
 | Check                                                                 | Command                                                                 | Result                            |
 | --------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------- |
-| Unit + integration tests (real PG/Redis/ES, SMTP & Slack HTTP mocked) | `npm test`                                                              | **262 passed** (248 API + 14 web) |
+| Unit + integration tests (real PG/Redis/ES, SMTP & Slack HTTP mocked) | `npm test`                                                              | **277 passed** (263 API + 14 web) |
 | Types (strict)                                                        | `npm run typecheck`                                                     | 0 errors                          |
 | Lint                                                                  | `npm run lint`                                                          | clean                             |
 | No cron anywhere (hard constraint)                                    | `npm run check:no-cron`                                                 | passed                            |

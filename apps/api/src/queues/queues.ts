@@ -1,5 +1,6 @@
 import { Queue, type JobsOptions } from 'bullmq';
 import type { Redis } from 'ioredis';
+import type { WebhookPayload } from '@ri/shared';
 import { env } from '../config/env.js';
 import type { Ticket } from '../throttle/rateLimiter.js';
 import { QUEUES } from './names.js';
@@ -21,7 +22,8 @@ export type CampaignPausedData = { campaignId: string; userId: string; subject: 
 export type NotifyJobData =
   | { kind: 'rate-limit'; notice: RateLimitNotice }
   | { kind: 'sender-paused'; notice: SenderPausedData }
-  | { kind: 'campaign-paused'; notice: CampaignPausedData };
+  | { kind: 'campaign-paused'; notice: CampaignPausedData }
+  | { kind: 'webhook'; webhookId: string; payload: WebhookPayload };
 export type IndexJobData = { emailIds: string[] };
 
 export type QueueSet = {

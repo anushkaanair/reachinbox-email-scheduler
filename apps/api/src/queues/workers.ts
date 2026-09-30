@@ -76,10 +76,10 @@ export function startIndexWorker(
  */
 export function startNotifyWorker(
   opts: { connection: Redis; prefix: string },
-  handler: (data: NotifyJobData) => Promise<void>,
+  handler: (data: NotifyJobData, attempt: { made: number; max: number }) => Promise<void>,
   logger: Logger,
 ): Worker<NotifyJobData> {
-  const worker = new Worker<NotifyJobData>(QUEUES.NOTIFY, (job) => handler(job.data), {
+  const worker = new Worker<NotifyJobData>(QUEUES.NOTIFY, (job) => handler(job.data, { made: job.attemptsMade, max: job.opts.attempts ?? 1 }), {
     connection: opts.connection,
     prefix: opts.prefix,
     concurrency: 2,

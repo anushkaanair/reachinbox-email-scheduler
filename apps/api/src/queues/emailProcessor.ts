@@ -39,7 +39,7 @@ export type ProcessorDeps = {
 
 export type CampaignPausedNotice = { campaignId: string; userId: string; subject: string; bounceRate: number; threshold: number; bounced: number; attempts: number };
 
-export type EmailChange = { userId: string; campaignId: string; status: string };
+export type EmailChange = { userId: string; campaignId: string; status: string; /** True for a permanent rejection (hard bounce). */ bounced?: boolean; error?: string };
 
 export type ProcessResult = { outcome: 'sent' | 'skipped'; reason?: string };
 
@@ -63,10 +63,11 @@ export function createEmailProcessor(deps: ProcessorDeps) {
     status: string,
     type: EmailEventType,
     meta?: Prisma.InputJsonValue,
+    extra?: { bounced?: boolean; error?: string },
   ) => {
     try {
       await prisma.emailEvent.create({ data: { emailId: e.id, userId: e.userId, type, meta } });
-      await deps.onEmailChanged?.(e.id, { userId: e.userId, campaignId: e.campaignId, status });
+      await deps.onEmailChanged?.(e.id, { userId: e.userId, campaignId: e.campaignId, status, ...extra });
     } catch (err) {
       logger.warn({ err, emailId: e.id }, 'recording email change failed');
     }
@@ -253,7 +254,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         error: message,
         attempt: job.attemptsMade + 1,
         final,
-      });
+      }, { bounced: bounce, error: message.slice(0, 300) });
       log.warn({ err: message, final, attempt: job.attemptsMade + 1 }, 'send failed');
       if (bounce) {
         await job.discard(); // stop BullMQ from retrying a permanent failure

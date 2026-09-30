@@ -45,7 +45,7 @@ Run `git status` — these are the pending files:
 **Suggested commit message:** `Add sender health, warm-up ramp and automatic sender pause` (then push).
 
 ### Quality gate (last run, all green)
-- 349 tests: 322 API + 27 web
+- 447 tests: 412 API + 35 web
 - Typecheck 0 errors, ESLint clean, build OK (main bundle 467 kB, no warning), `npm audit` 0 vulnerabilities, no-cron check passes
 - axe accessibility: 0 violations in light and dark on every page, including Senders
 

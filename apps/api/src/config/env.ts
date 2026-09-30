@@ -48,6 +48,12 @@ const EnvSchema = z.object({
    */
   ALLOW_PRIVATE_SMTP_HOSTS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 
+  /**
+   * Allow webhook URLs that resolve to a loopback/private address. Off by default: the URL is user-supplied, and
+   * without this a webhook could be pointed at the internal network. Turn on only for local receivers.
+   */
+  ALLOW_PRIVATE_WEBHOOK_HOSTS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+
   WORKER_CONCURRENCY: int(5, 1),
   MIN_DELAY_BETWEEN_EMAILS_MS: int(2000),
   MAX_EMAILS_PER_HOUR: int(200, 1),

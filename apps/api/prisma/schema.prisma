@@ -27,6 +27,7 @@ model User {
   attachments      Attachment[]
   drafts           Draft[]
   leadLists        LeadList[]
+  webhooks         Webhook[]
   /// First-run onboarding answers, tour progress and checklist state (see shared/onboarding.ts). Null = not seen yet.
   onboarding       Json?
 }
@@ -166,6 +167,42 @@ model ListLead {
 
   @@unique([listId, email])
   @@index([listId, status])
+}
+
+/// Where a user wants events sent (email sent / failed / bounced, campaign paused, …). The URL is untrusted input:
+/// it is checked when saved and again at the moment of connecting, and payloads are signed with `secretEnc`.
+model Webhook {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url             String
+  /// HMAC key (AES-256-GCM at rest). The plaintext is shown once, when created or rotated.
+  secretEnc       String
+  events          String[]
+  /// Null = every campaign.
+  campaignId      String?
+  active          Boolean           @default(true)
+  failureCount    Int               @default(0)
+  lastDeliveryAt  DateTime?
+  lastStatus      String?
+  createdAt       DateTime          @default(now())
+  deliveries      WebhookDelivery[]
+
+  @@index([userId, active])
+}
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhookId  String
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event      String
+  ok         Boolean
+  httpStatus Int?
+  error      String?
+  attempt    Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  @@index([webhookId, createdAt])
 }
 
 model Campaign {

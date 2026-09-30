@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import nodemailer from 'nodemailer';
 import { AppError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
@@ -9,16 +9,15 @@ export type SmtpCredentials = { host: string; port: number; user: string; pass: 
 /** Logs in to an SMTP server. Resolves on success, rejects with the server's own message. */
 export type SmtpVerifier = (c: SmtpCredentials) => Promise<void>;
 
-/** True for loopback, private, link-local and other non-public IPv4/IPv6 addresses. */
+/** Non-public ranges. net.BlockList understands IPv4-mapped IPv6 (::ffff:a00:1 is 10.0.0.1), which hand-rolled checks miss. */
+const PRIVATE = new BlockList();
+for (const [net, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]] as const) PRIVATE.addSubnet(net, bits, 'ipv4');
+for (const [net, bits] of [['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['64:ff9b::', 96], ['2001:db8::', 32]] as const) PRIVATE.addSubnet(net, bits, 'ipv6');
+
+/** True for loopback, private, link-local, multicast and other non-public addresses (anything unparseable counts as unsafe). */
 export function isPrivateAddress(ip: string): boolean {
-  if (ip.includes(':')) {
-    const v = ip.toLowerCase();
-    if (v === '::1' || v === '::' || v.startsWith('fe80') || v.startsWith('fc') || v.startsWith('fd')) return true;
-    const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    return mapped ? isPrivateAddress(mapped[1]!) : false;
-  }
-  const [a, b] = ip.split('.').map(Number) as [number, number];
-  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+  const v = isIP(ip);
+  return v === 0 ? true : PRIVATE.check(ip, v === 4 ? 'ipv4' : 'ipv6');
 }
 
 /** Refuses hosts that point inside the network, unless explicitly allowed (dev/test only). */

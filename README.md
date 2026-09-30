@@ -37,7 +37,7 @@ No cron anywhere — every send time is a BullMQ delayed job.
 | **Strict throttling**        | Min gap between two sends of one sender: **2,034 ms** measured for a 2,000 ms setting                                                                                                                                                |
 | **Hourly limits under load** | 1,000 emails due at once → **0 dropped**, exactly 4/sender/window in demo mode, the rest deferred in order                                                                                                                           |
 | **Slack alert**              | OAuth flow, encrypted token storage and one alert per sender per window are built and tested against a mocked Slack API (11 tests); a live run against real Slack needs your own Slack app ([setup below](#slack-rate-limit-alerts)) |
-| **Quality gates**            | 349 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (light theme, every page; dark not re-audited since the Figma restyle) · CI                                                                                                                       |
+| **Quality gates**            | 447 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (light theme, every page; dark not re-audited since the Figma restyle) · CI                                                                                                                       |
 
 ---
 
@@ -350,6 +350,13 @@ Cancelling the remaining 976 took 0.18 s.
 | **Onboarding + tour**             | Four-question setup, a checklist that ticks itself from real data, a recommendation for how many mailboxes you need, and a guided tour. Always opt-in: login lands on the dashboard |
 | **Bounce protection**             | A campaign pauses itself when hard bounces exceed a threshold (default 10% after 20 emails), tells you by toast and Slack, and resumes with nothing dropped. Evaluated when a bounce happens; no timer, no cron |
 | **Campaign status detail**        | Bounce count and rate, "paused: bounce protection", and "every sender is paused" shown on the campaign card                                          |
+| **Archive, star, filters**        | Archive finished emails (Archived filter), star any email, filter by delivered/failed                                                                  |
+| **Rich-text email**               | The Figma toolbar (bold, italic, underline, strike, size, alignment, lists, indent, quote); sanitised in the browser and again on the server; sent as HTML with a plain-text alternative |
+| **Attachments**                   | png/jpg/gif/pdf/txt/csv/docx/xlsx/pptx, type checked from the file's bytes, 5 files · 5 MB each · 10 MB per campaign; sent with every email                |
+| **Drafts**                        | Save the compose form and continue from Campaigns; a draft is only data, so nothing can be sent from it                                                |
+| **Day-specific hours**            | "Fridays close at 1 PM", "Saturday mornings": per-weekday hours layered on the business-hours window                                                   |
+| **Lead lists + checks**           | Save recipients as lists; check format, domain mail servers (MX), throwaway domains, role addresses and typos. Never contacts the mailbox                |
+| **Webhooks (API)**                | Signed (HMAC-SHA256) events for email sent/failed/bounced, campaign auto-paused, sender paused, rate limit hit; retries with backoff; private-network URLs refused at connect time. API only; no UI yet |
 | **One-command setup, demo tools** | `npm run setup`, `dev:demo`, `demo load / restart / verify / reset`                                                                                   |
 
 ---
@@ -399,7 +406,7 @@ All routes except auth/health require the session cookie. Errors are always `{ e
 ## Testing & verification
 
 ```bash
-npm test              # 349 tests: 322 API (real Postgres/Redis/Elasticsearch) + 27 web unit tests
+npm test              # 447 tests: 412 API (real Postgres/Redis/Elasticsearch) + 35 web unit tests
 npm run typecheck && npm run lint && npm run check:no-cron && npm audit
 ```
 

@@ -239,7 +239,7 @@ We expect:
 | Not verifiable by us | **Pixel match with the Figma** — the file could not be opened by our tooling; the UI follows the layout the brief describes |
 | Still to do (owner) | Record the ≤ 5-min demo video (script in `docs/DEMO_SCRIPT.md`); invite `Mitrajit` and `Yadav036` to the repo |
 | Beyond the brief | **30+ additional features** (listed below) |
-| Quality | **349 automated tests** (322 API against real Postgres/Redis/Elasticsearch + 27 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations on every page in the light theme (dark not re-audited since the Figma restyle) · CI · no cron (enforced by a CI check) |
+| Quality | **447 automated tests** (412 API against real Postgres/Redis/Elasticsearch + 35 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations on every page in the light theme (dark not re-audited since the Figma restyle) · CI · no cron (enforced by a CI check) |
 
 Evidence for every measured claim below is in `docs/VERIFICATION.md`.
 
@@ -431,7 +431,7 @@ Details and commands: `docs/VERIFICATION.md`.
 npm install
 npm run setup      # env, Docker services, migrations, 3 Ethereal senders, search index
 npm run dev        # API :4000 · worker · web :5173   (or: npm run dev:demo for 1-minute hours)
-npm test           # 349 tests
+npm test           # 447 tests
 ```
 
 - Queue dashboard: `http://localhost:4000/admin/queues`

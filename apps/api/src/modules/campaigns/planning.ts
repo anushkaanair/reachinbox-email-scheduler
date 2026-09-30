@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { nextSendWindowStart, sendWindowIntervals, type ForecastWindow, type SendWindow } from '@ri/shared';
+import { hash32, nextSendWindowStart, seededRandom, sendWindowIntervals, type ForecastWindow, type SendWindow } from '@ri/shared';
 
 /**
  * When each email of a campaign is first scheduled: `start + i × delay`, and when a business-hours
@@ -7,16 +7,31 @@ import { nextSendWindowStart, sendWindowIntervals, type ForecastWindow, type Sen
  * continues from there). Used by the real scheduler AND the compose-time forecast, so the preview
  * always matches what actually gets queued.
  */
-export function scheduleTimes(count: number, startMs: number, delayMs: number, window?: SendWindow | null): number[] {
+export function scheduleTimes(
+  count: number,
+  startMs: number,
+  delayMs: number,
+  window?: SendWindow | null,
+  /** Vary each gap by up to ±N% (0–50) so the cadence looks human. Deterministic from `seed`. */
+  jitterPercent = 0,
+  seed = '',
+): number[] {
   const out: number[] = new Array<number>(count);
+  const rnd = jitterPercent > 0 && delayMs > 0 ? seededRandom(`jitter:${seed}`) : null;
+  const spread = Math.min(50, Math.max(0, jitterPercent)) / 100;
   let t = startMs;
   for (let i = 0; i < count; i++) {
     if (window) t = nextSendWindowStart(t, window);
     out[i] = t;
-    t += delayMs;
+    // Mean gap stays `delayMs`; each gap lands in [delay × (1 − j), delay × (1 + j)]. The per-sender
+    // minimum delay is enforced separately by the rate limiter, so jitter can never undercut it.
+    t += rnd ? Math.round(delayMs * (1 + spread * (2 * rnd() - 1))) : delayMs;
   }
   return out;
 }
+
+/** Seed for a campaign's jitter: stable for the same lead list, so the forecast matches the real schedule. */
+export const jitterSeed = (emails: string[]) => `${emails.length}:${hash32(emails.join(','))}`;
 
 export type ForecastInput = {
   /** First-scheduled time of every email (from `scheduleTimes`). */

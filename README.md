@@ -37,7 +37,7 @@ No cron anywhere — every send time is a BullMQ delayed job.
 | **Strict throttling**        | Min gap between two sends of one sender: **2,034 ms** measured for a 2,000 ms setting                                                                                                                                                |
 | **Hourly limits under load** | 1,000 emails due at once → **0 dropped**, exactly 4/sender/window in demo mode, the rest deferred in order                                                                                                                           |
 | **Slack alert**              | OAuth flow, encrypted token storage and one alert per sender per window are built and tested against a mocked Slack API (11 tests); a live run against real Slack needs your own Slack app ([setup below](#slack-rate-limit-alerts)) |
-| **Quality gates**            | 231 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (both themes) · CI                                                                                                                       |
+| **Quality gates**            | 262 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (both themes) · CI                                                                                                                       |
 
 ---
 
@@ -312,39 +312,43 @@ Cancelling the remaining 976 took 0.18 s.
 
 ### Beyond the brief
 
-| Feature                           | What you see                                                                                                                        |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Live dashboard (SSE)**          | Rows change status and counters tick with no refresh; "Live" indicator                                                              |
-| **In-app rate-limit alerts**      | Toast the moment a sender hits its limit, with the resume time                                                                      |
-| **"Resumes at" badges**           | Deferred rows show when they'll send; "Paused" when their campaign is                                                               |
-| **Email detail drawer**           | Full email, Message-ID, Ethereal link, and a status timeline                                                                        |
-| **Campaigns page**                | Live progress bars; Pause / Resume / Cancel (pausing keeps order)                                                                   |
-| **Retry failed / cancel one**     | One click from the drawer                                                                                                           |
-| **Analytics**                     | Sent / failed / deferred tiles, hourly chart (+ table view), live per-sender quota meters                                           |
-| **Merge tags**                    | `{{name}}`, `{{company}}`, any CSV column — click to insert                                                                         |
-| **Upload report + ETA**           | "10 detected · 1 invalid · 1 duplicate", estimated finish time                                                                      |
-| **Search with highlights**        | `/` to focus; typo-tolerant fallback                                                                                                |
-| **System health**                 | DB / Redis / Search / live-stream status + Bull Board link                                                                          |
-| **Compose preview + test send**   | The email exactly as a recipient sees it (merge tags highlighted), warnings for blank tags, and a real test email to a sender inbox |
-| **Send forecast**                 | Window-by-window chart of when emails will actually go out under your limits, before you schedule                                   |
-| **Do-not-contact list + guard**   | Blocked addresses (and optionally anyone emailed in the last N days) are skipped, and the report says how many                      |
-| **Business-hours window**         | "Only send 9–5 in this time zone, weekdays" — night/weekend emails roll to the next opening, including deferred ones                |
-| **CSV export + bulk retry**       | Download any list as CSV (formula-injection safe); "Retry N failed" on a campaign                                                   |
-| **Ask Inbox (assistant)**         | Cmd+K palette and a docked side panel: ask about your data, or command changes that wait for a Confirm                              |
-| **Light and dark themes**         | Light, dark ("space") or follow the system; chosen in the header or Settings → Appearance                                           |
-| **One-command setup, demo tools** | `npm run setup`, `dev:demo`, `demo load / restart / verify / reset`                                                                 |
+| Feature                           | What you see                                                                                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Live dashboard (SSE)**          | Rows change status and counters tick with no refresh; "Live" indicator                                                                                |
+| **In-app rate-limit alerts**      | Toast the moment a sender hits its limit, with the resume time                                                                                        |
+| **"Resumes at" badges**           | Deferred rows show when they'll send; "Paused" when their campaign is                                                                                 |
+| **Email detail drawer**           | Full email, Message-ID, Ethereal link, and a status timeline                                                                                          |
+| **Campaigns page**                | Live progress bars; Pause / Resume / Cancel (pausing keeps order)                                                                                     |
+| **Retry failed / cancel one**     | One click from the drawer                                                                                                                             |
+| **Analytics**                     | Sent / failed / deferred tiles, hourly chart (+ table view), live per-sender quota meters                                                             |
+| **Merge tags**                    | `{{name}}`, `{{company}}`, any CSV column — click to insert                                                                                           |
+| **Upload report + ETA**           | "10 detected · 1 invalid · 1 duplicate", estimated finish time                                                                                        |
+| **Search with highlights**        | `/` to focus; typo-tolerant fallback                                                                                                                  |
+| **System health**                 | DB / Redis / Search / live-stream status + Bull Board link                                                                                            |
+| **Compose preview + test send**   | The email exactly as a recipient sees it (merge tags highlighted), warnings for blank tags, and a real test email to a sender inbox                   |
+| **Send forecast**                 | Window-by-window chart of when emails will actually go out under your limits, before you schedule                                                     |
+| **Do-not-contact list + guard**   | Blocked addresses (and optionally anyone emailed in the last N days) are skipped, and the report says how many                                        |
+| **Business-hours window**         | "Only send 9–5 in this time zone, weekdays" — night/weekend emails roll to the next opening, including deferred ones                                  |
+| **CSV export + bulk retry**       | Download any list as CSV (formula-injection safe); "Retry N failed" on a campaign                                                                     |
+| **Spam check**                    | Live 0–100 content score while you type; flags hype words, ALL CAPS, !!!, fake “Re:”, link shorteners and length, with one-click plainer replacements |
+| **Spintax**                       | `{Hi\|Hello\|Hey} {{name}}` — each recipient gets one variant, seeded by their address (preview, test send and real send always agree)                |
+| **Send jitter**                   | “Randomise gaps ±10/25/50%” so the cadence looks human; the per-sender minimum delay still holds                                                      |
+| **Ask Inbox (assistant)**         | Cmd+K palette and a docked side panel: ask about your data, or command changes that wait for a Confirm                                                |
+| **Light and dark themes**         | Light, dark ("space") or follow the system; chosen in the header or Settings → Appearance                                                             |
+| **One-command setup, demo tools** | `npm run setup`, `dev:demo`, `demo load / restart / verify / reset`                                                                                   |
 
 ---
 
 ## Screenshots
 
-|                                                                                                      |                                                                                                              |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| ![Compose](docs/screenshots/compose.png) **Compose** — upload report, merge tags, ETA                | ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel              |
-| ![Detail](docs/screenshots/drawer.png) **Email detail** — timeline incl. rate-limit deferral         | ![Analytics](docs/screenshots/analytics.png) **Analytics** — live limit alert and quota meters               |
-| ![Search](docs/screenshots/search.png) **Search** — Elasticsearch with highlights                    | ![Login](docs/screenshots/login.png) **Login** — Google OAuth                                                |
-| ![Dark](docs/screenshots/campaigns-dark.png) **Dark theme** — deep-space backdrop, frosted cards     | ![Appearance](docs/screenshots/settings-appearance-dark.png) **Settings → Appearance** — light, dark, system |
-| ![Palette](docs/screenshots/assistant-palette-dark.png) **Ask Inbox: Cmd+K palette** — quick answers | ![Panel](docs/screenshots/assistant-panel-light.png) **Ask Inbox: side panel** — confirm before any change   |
+|                                                                                                               |                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![Compose](docs/screenshots/compose.png) **Compose** — upload report, merge tags, ETA                         | ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel              |
+| ![Detail](docs/screenshots/drawer.png) **Email detail** — timeline incl. rate-limit deferral                  | ![Analytics](docs/screenshots/analytics.png) **Analytics** — live limit alert and quota meters               |
+| ![Search](docs/screenshots/search.png) **Search** — Elasticsearch with highlights                             | ![Login](docs/screenshots/login.png) **Login** — Google OAuth                                                |
+| ![Dark](docs/screenshots/campaigns-dark.png) **Dark theme** — deep-space backdrop, frosted cards              | ![Appearance](docs/screenshots/settings-appearance-dark.png) **Settings → Appearance** — light, dark, system |
+| ![Content check](docs/screenshots/content-check-dark.png) **Content check** — spam score with one-click fixes | ![Jitter](docs/screenshots/campaigns-dark.png) **Campaigns (dark)**                                          |
+| ![Palette](docs/screenshots/assistant-palette-dark.png) **Ask Inbox: Cmd+K palette** — quick answers          | ![Panel](docs/screenshots/assistant-panel-light.png) **Ask Inbox: side panel** — confirm before any change   |
 
 ---
 
@@ -377,7 +381,7 @@ All routes except auth/health require the session cookie. Errors are always `{ e
 ## Testing & verification
 
 ```bash
-npm test              # 231 tests: 217 API (real Postgres/Redis/Elasticsearch) + 14 web unit tests
+npm test              # 262 tests: 248 API (real Postgres/Redis/Elasticsearch) + 14 web unit tests
 npm run typecheck && npm run lint && npm run check:no-cron && npm audit
 ```
 
@@ -408,6 +412,9 @@ Postgres/Redis/Elasticsearch services, the build, and `npm audit`.
   the next opening, so their exact order within that opening is best-effort rather than strict.
 - **The "recently emailed" guard is off by default**, so re-uploading a test file behaves as expected; tick it in
   Compose to turn it on.
+- **The spam check is a heuristic**, not a real spam filter: a word list plus formatting rules. It can't see
+  sender reputation or authentication (SPF/DKIM), which matter more in practice.
+- **Spintax is resolved before merge tags**, so lead data containing `{a|b}` is never treated as spintax.
 - **The forecast is an estimate** ("≈ finishes …"), built from the same limits the limiter uses, not a promise.
 
 - **At-most-once on the crash window** (see [Idempotency](#idempotency--the-same-email-is-never-sent-twice)). With a

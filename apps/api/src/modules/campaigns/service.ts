@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   isValidEmail,
   renderTemplate,
+  spin,
   type SendWindow,
   type CreateCampaignInput,
   type CreateCampaignResponse,
@@ -12,7 +13,7 @@ import { AppError } from '../../lib/errors.js';
 import { publishLive } from '../../lib/live.js';
 import { enqueueEmails, enqueueIndex, type QueueSet } from '../../queues/queues.js';
 import type { RateLimiter } from '../../throttle/rateLimiter.js';
-import { applyGuards, forecast, scheduleTimes, type Forecast } from './planning.js';
+import { applyGuards, forecast, jitterSeed, scheduleTimes, type Forecast } from './planning.js';
 
 export type SchedulingConfig = {
   maxPerWindowGlobal: number;
@@ -22,7 +23,7 @@ export type SchedulingConfig = {
 };
 
 /** Same as the validated API input, but callers (tests, scripts) may omit the defaulted fields. */
-export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays'> & { skipRecentDays?: number };
+export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent'> & { skipRecentDays?: number; jitterPercent?: number };
 
 type CleanLead = { email: string; name?: string; vars: Record<string, string> };
 
@@ -122,7 +123,8 @@ export async function createCampaign(
   const campaignId = randomUUID();
 
   const sendWindow = input.sendWindow ?? null;
-  const times = scheduleTimes(clean.length, startMs, delayMs, sendWindow);
+  const jitterPercent = input.jitterPercent ?? 0;
+  const times = scheduleTimes(clean.length, startMs, delayMs, sendWindow, jitterPercent, jitterSeed(clean.map((l) => l.email)));
 
   const rows: Prisma.EmailCreateManyInput[] = clean.map((lead, i) => {
     const at = new Date(times[i]!);
@@ -135,8 +137,9 @@ export async function createCampaign(
       toEmail: lead.email,
       toName: lead.name ?? null,
       vars: lead.vars,
-      subject: renderTemplate(input.subject, vars),
-      body: renderTemplate(input.body, vars),
+      // Spintax first (one variant per recipient, seeded by their address), then merge tags.
+      subject: renderTemplate(spin(input.subject, lead.email), vars),
+      body: renderTemplate(spin(input.body, lead.email), vars),
       sequence: i,
       scheduledAt: at,
       nextAttemptAt: at,
@@ -154,6 +157,7 @@ export async function createCampaign(
         delayBetweenMs: delayMs,
         sendWindow: sendWindow ?? undefined,
         skipRecentDays: input.skipRecentDays ?? 0,
+        jitterPercent,
         hourlyLimit: input.hourlyLimit,
         totalRecipients: rows.length,
       },

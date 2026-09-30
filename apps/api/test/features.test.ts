@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Job } from 'bullmq';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { isInSendWindow, nextSendWindowStart, type SendWindow } from '@ri/shared';
+import { isInSendWindow, nextSendWindowStart, renderTemplate, spin, type SendWindow } from '@ri/shared';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
 import { createRedis, redis } from '../src/lib/redis.js';
@@ -340,5 +340,53 @@ describe('test send', () => {
     expect(res.status).toBe(503);
     expect((await request(app).post('/api/campaigns/test-send').set('Cookie', cookie()).send({})).status).toBe(400);
     expect((await request(app).post('/api/campaigns/test-send').send({ subject: 's', body: 'b' })).status).toBe(401);
+  });
+});
+
+describe('spintax and jitter through the real scheduler', () => {
+  it('each stored email gets its recipient’s variant, merge tags filled after spinning', async () => {
+    const leads = Array.from({ length: 30 }, (_, i) => `spin${i}-${tag()}@x.dev`);
+    const c = await campaign(leads, { subject: '{Hi|Hello|Hey} {{name}}', body: '{Quick|Short} note for {{email}}' });
+    const subjects = new Set(c.rows.map((r) => r.subject.split(' ')[0]));
+    expect(subjects).toEqual(new Set(['Hi', 'Hello', 'Hey']));
+    for (const r of c.rows) {
+      expect(r.subject).toBe(renderTemplate(spin('{Hi|Hello|Hey} {{name}}', r.toEmail), { name: '', email: r.toEmail }));
+      expect(r.body).toMatch(new RegExp(`^(Quick|Short) note for ${r.toEmail.replace(/[.+]/g, '\\$&')}$`));
+      expect(r.subject).not.toContain('{');
+    }
+    expect((await prisma.campaign.findUniqueOrThrow({ where: { id: c.campaignId } })).jitterPercent).toBe(0);
+  });
+
+  it('jitter varies the stored schedule and is recorded on the campaign', async () => {
+    const leads = Array.from({ length: 20 }, (_, i) => `jit${i}-${tag()}@x.dev`);
+    const c = await campaign(leads, { delayBetweenSeconds: 60, jitterPercent: 30 });
+    const times = c.rows.map((r) => r.scheduledAt.getTime());
+    const gaps = times.slice(1).map((t, i) => t - times[i]!);
+    expect(new Set(gaps).size).toBeGreaterThan(10);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(42_000);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(78_000);
+    expect((await prisma.campaign.findUniqueOrThrow({ where: { id: c.campaignId } })).jitterPercent).toBe(30);
+  });
+
+  it('the API refuses malformed spintax on schedule and on test send', async () => {
+    const res = await request(app).post('/api/campaigns').set('Cookie', cookie()).send({
+      subject: '{Hi|Hello {{name}}', body: 'b', leads: [{ email: 'a@x.dev' }], startAt: new Date(Date.now() + 1e5).toISOString(), delayBetweenSeconds: 0, hourlyLimit: 5,
+    });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('never closed');
+    const t = await request(app).post('/api/campaigns/test-send').set('Cookie', cookie()).send({ subject: '{name}', body: 'b', senderId });
+    expect(t.status).toBe(400);
+  });
+
+  it('test send uses the same variant the previewed lead will receive', async () => {
+    await new Promise((r) => setTimeout(r, 2100)); // sender minimum delay after earlier test sends
+    sendMock.mockClear();
+    const lead = 'variant-check@x.dev';
+    const res = await request(app).post('/api/campaigns/test-send').set('Cookie', cookie()).send({
+      subject: '{Hi|Hello|Hey} there', body: '{A|B|C}', senderId, sample: { email: lead },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.subject).toBe(`[TEST] ${spin('{Hi|Hello|Hey} there', lead)}`);
+    expect(sendMock.mock.calls[0]![1].body).toBe(spin('{A|B|C}', lead));
   });
 });

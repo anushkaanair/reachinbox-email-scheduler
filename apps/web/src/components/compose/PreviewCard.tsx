@@ -5,6 +5,7 @@ import type { Lead } from '@ri/shared';
 import { Button } from '@/components/ui/Button';
 import { useTestSend } from '@/hooks/useCompose';
 import { cn } from '@/lib/cn';
+import { spin, spintaxVariants } from '@ri/shared';
 import { extractTags, leadVars, renderSegments, tagGaps, type Segment } from '@/lib/mergeTags';
 
 const nf = new Intl.NumberFormat();
@@ -58,6 +59,11 @@ export function PreviewCard({
   const tags = useMemo(() => extractTags(subject, body), [subject, body]);
   const gaps = useMemo(() => (leads ? tagGaps(leads, tags) : []), [leads, tags]);
   const hasContent = subject.trim() || body.trim();
+  // The exact variant this recipient gets (spintax is seeded by their address, like the real send).
+  const seed = lead?.email ?? vars.email ?? 'preview';
+  const spunSubject = useMemo(() => spin(subject, seed), [subject, seed]);
+  const spunBody = useMemo(() => spin(body, seed), [body, seed]);
+  const variants = useMemo(() => spintaxVariants(subject) * spintaxVariants(body), [subject, body]);
 
   const sendTest = () =>
     test.mutate(
@@ -90,6 +96,9 @@ export function PreviewCard({
               </>
             ) : (
               'Sample recipient — upload leads to preview real ones'
+            )}
+            {variants > 1 && (
+              <span className="text-accent"> · {variants >= 1_000_000 ? '1M+' : new Intl.NumberFormat().format(variants)} wording variants</span>
             )}
           </p>
         </div>
@@ -139,11 +148,11 @@ export function PreviewCard({
         <div className="border-b border-line bg-canvas/60 px-4 py-2.5 text-sm">
           <span className="text-muted">Subject: </span>
           <span className="font-medium">
-            {subject.trim() ? <Rendered segments={renderSegments(subject, vars)} /> : <span className="text-muted">(no subject yet)</span>}
+            {subject.trim() ? <Rendered segments={renderSegments(spunSubject, vars)} /> : <span className="text-muted">(no subject yet)</span>}
           </span>
         </div>
         <div className="max-h-72 overflow-y-auto px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap" tabIndex={0} aria-label="Email body preview">
-          {body.trim() ? <Rendered segments={renderSegments(body, vars)} /> : <span className="text-muted">Start typing the email body to see it here.</span>}
+          {body.trim() ? <Rendered segments={renderSegments(spunBody, vars)} /> : <span className="text-muted">Start typing the email body to see it here.</span>}
         </div>
       </div>
 

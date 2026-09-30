@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, ArrowLeft, CalendarClock, Send } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { applySpamFix, spintaxError, type SpamField } from '@ri/shared';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ApiError } from '@/api/client';
+import { ContentCheckCard } from '@/components/compose/ContentCheckCard';
 import { ForecastCard } from '@/components/compose/ForecastCard';
 import { LeadsUpload, type UploadedLeads } from '@/components/compose/LeadsUpload';
 import { PreviewCard } from '@/components/compose/PreviewCard';
@@ -18,10 +20,23 @@ import { useDebounced } from '@/hooks/useIntegrations';
 import { formatWhen } from '@/lib/format';
 import { QUICK_STARTS, estimateFinish, toLocalInput } from '@/lib/schedule';
 
+const spintaxRefine = (v: string, ctx: z.RefinementCtx) => {
+  const err = spintaxError(v);
+  if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+};
+
+const JITTER_OPTIONS = [
+  { value: 0, label: 'Off — exact spacing' },
+  { value: 10, label: '±10%' },
+  { value: 25, label: '±25% (recommended)' },
+  { value: 50, label: '±50%' },
+];
+
 const FormSchema = z.object({
   senderId: z.string(),
-  subject: z.string().trim().min(1, 'Subject is required').max(300, 'Keep the subject under 300 characters'),
-  body: z.string().trim().min(1, 'Body is required'),
+  subject: z.string().trim().min(1, 'Subject is required').max(300, 'Keep the subject under 300 characters').superRefine(spintaxRefine),
+  body: z.string().trim().min(1, 'Body is required').superRefine(spintaxRefine),
+  jitterPercent: z.coerce.number().int().min(0).max(50),
   startAt: z
     .string()
     .min(1, 'Pick a start time')
@@ -53,17 +68,19 @@ export function ComposePage() {
       startAt: toLocalInput(new Date(Date.now() + 5 * 60_000)),
       delayBetweenSeconds: 2,
       hourlyLimit: 50,
+      jitterPercent: 0,
     },
   });
   const { register, handleSubmit, setValue, getValues, watch, setError, formState } = form;
   const { errors } = formState;
   const bodyField = register('body');
 
-  const [senderId, startAt, delay, hourly, subject, body] = watch([
+  const [senderId, startAt, delay, hourly, jitter, subject, body] = watch([
     'senderId',
     'startAt',
     'delayBetweenSeconds',
     'hourlyLimit',
+    'jitterPercent',
     'subject',
     'body',
   ]);
@@ -89,8 +106,9 @@ export function ComposePage() {
       senderIds: senderId ? [senderId] : undefined,
       sendWindow: rulesToSendWindow(rules),
       skipRecentDays: rules.skipOn ? rules.skipDays : 0,
+      jitterPercent: Number(jitter) || 0,
     };
-  }, [leads, startIso, delay, hourly, senderId, rules, rulesError]);
+  }, [leads, startIso, delay, hourly, jitter, senderId, rules, rulesError]);
   const debouncedParams = useDebounced(params, 500);
   const pre = usePreflight(debouncedParams, leadsKey);
   const forecastLoading = pre.isFetching || (params !== null && debouncedParams !== params);
@@ -108,6 +126,23 @@ export function ComposePage() {
   const nothingToSend = Boolean(report && report.sendable === 0);
   const finish = report?.forecast.finishAt ?? localEta?.toISOString() ?? null;
   const first = report?.forecast.firstSendAt ?? (startIso ?? null);
+
+  const liveSubjectErr = spintaxError(subject) ?? undefined;
+  const liveBodyErr = spintaxError(body) ?? undefined;
+
+  /** Swap a flagged phrase for the suggested one, in the field it came from. */
+  const applyFix = (field: SpamField, match: string, replacement: string) =>
+    setValue(field, applySpamFix(getValues(field), match, replacement), { shouldDirty: true, shouldValidate: formState.isSubmitted });
+
+  /** Insert any text at the cursor in the body. */
+  const insertText = (snippet: string) => {
+    const el = bodyRef.current;
+    const text = getValues('body');
+    const at = el?.selectionStart ?? text.length;
+    setValue('body', `${text.slice(0, at)}${snippet}${text.slice(el?.selectionEnd ?? at)}`, { shouldDirty: true, shouldValidate: formState.isSubmitted });
+    el?.focus();
+    el?.setSelectionRange(at + snippet.length, at + snippet.length);
+  };
 
   /** Insert a {{tag}} at the cursor in the body. */
   const insertTag = (tag: string) => {
@@ -137,6 +172,7 @@ export function ComposePage() {
         senderIds: v.senderId ? [v.senderId] : undefined,
         sendWindow: rulesToSendWindow(rules),
         skipRecentDays: rules.skipOn ? rules.skipDays : 0,
+        jitterPercent: v.jitterPercent,
       },
       {
         onSuccess: (res) => {
@@ -223,14 +259,14 @@ export function ComposePage() {
               error={leadsError}
             />
 
-            <Input label="Subject" placeholder="Quick question, {{name}}" error={errors.subject?.message} {...register('subject')} />
+            <Input label="Subject" placeholder="{Quick|Short} question, {{name}}" error={errors.subject?.message ?? liveSubjectErr} {...register('subject')} />
 
             <div className="flex flex-col gap-2">
               <Textarea
                 label="Body"
                 rows={12}
                 placeholder={'Hi {{name}},\n\nWrite your email here…'}
-                error={errors.body?.message}
+                error={errors.body?.message ?? liveBodyErr}
                 {...bodyField}
                 ref={(el) => {
                   bodyField.ref(el);
@@ -250,9 +286,23 @@ export function ComposePage() {
                     {`{{${t}}}`}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertText('{Hi|Hello|Hey}')}
+                  title="Spintax: each recipient gets one of the options"
+                  className="rounded-md border border-accent/40 bg-accent-soft px-2 py-0.5 font-mono text-accent hover:border-accent"
+                >
+                  {'{a|b}'}
+                </button>
               </div>
+              <p className="text-xs text-muted">
+                Tip: write <code className="font-mono text-soft">{'{Hi|Hello|Hey}'}</code> to vary wording — each recipient gets one option, and the preview shows theirs.
+              </p>
             </div>
           </section>
+
+          <ContentCheckCard subject={subject} body={body} onFix={applyFix} />
 
           <PreviewCard leads={leads?.leads ?? null} subject={subject} body={body} senderId={senderId} />
         </div>
@@ -282,6 +332,21 @@ export function ComposePage() {
               error={errors.delayBetweenSeconds?.message}
               {...register('delayBetweenSeconds')}
             />
+            <Select
+              label="Randomise gaps"
+              hint={
+                Number(delay) > 0
+                  ? `Gaps vary between ${Math.round(Number(delay) * (1 - Number(jitter) / 100))}s and ${Math.round(Number(delay) * (1 + Number(jitter) / 100))}s so the cadence looks human. The per-sender minimum always holds.`
+                  : 'Needs a delay above 0 to have any effect.'
+              }
+              {...register('jitterPercent')}
+            >
+              {JITTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
             <Input
               type="number"
               min={1}

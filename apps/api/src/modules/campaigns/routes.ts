@@ -4,6 +4,7 @@ import {
   CreateCampaignInputSchema,
   PreflightInputSchema,
   renderTemplate,
+  spin,
   TestSendInputSchema,
   type TestSendResponse,
 } from '@ri/shared';
@@ -74,13 +75,14 @@ export function campaignsRouter(queues: QueueSet, opts: { send?: SendFn } = {}) 
       }
 
       const vars = { email: input.sample?.email ?? sender.email, name: input.sample?.name ?? '', ...input.sample?.vars };
-      const subject = `[TEST] ${renderTemplate(input.subject, vars)}`;
+      const seed = input.sample?.email ?? sender.email; // same variant the lead will get
+      const subject = `[TEST] ${renderTemplate(spin(input.subject, seed), vars)}`;
       const result = await send(sender, {
         emailId: randomUUID(),
         to: sender.email,
         toName: null,
         subject,
-        body: renderTemplate(input.body, vars),
+        body: renderTemplate(spin(input.body, seed), vars),
       }).catch(() => {
         throw new AppError(503, 'UNAVAILABLE', 'Couldn’t send the test email — check the sender’s SMTP account');
       });

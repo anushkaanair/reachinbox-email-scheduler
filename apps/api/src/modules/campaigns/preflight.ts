@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { PreflightInput, PreflightResponse } from '@ri/shared';
 import type { RateLimiter } from '../../throttle/rateLimiter.js';
-import { applyGuards, scheduleTimes } from './planning.js';
+import { applyGuards, jitterSeed, scheduleTimes } from './planning.js';
 import { computeForecast, loadSenders, normalizeLeads, type SchedulingConfig } from './service.js';
 
 /**
@@ -18,7 +18,7 @@ export async function preflight(
   const senders = await loadSenders(deps.prisma, input.senderIds);
 
   const startMs = Math.max(Date.now(), new Date(input.startAt).getTime());
-  const times = scheduleTimes(guarded.sendable.length, startMs, input.delayBetweenSeconds * 1000, input.sendWindow);
+  const times = scheduleTimes(guarded.sendable.length, startMs, input.delayBetweenSeconds * 1000, input.sendWindow, input.jitterPercent, jitterSeed(guarded.sendable.map((l) => l.email)));
   const fc =
     senders.length === 0
       ? { firstSendAt: null, finishAt: null, windows: [], windowsTotal: 0, truncated: false }

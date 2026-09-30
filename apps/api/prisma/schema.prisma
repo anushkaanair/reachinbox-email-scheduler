@@ -96,6 +96,8 @@ model Campaign {
   sendWindow      Json?
   /// "Skip people emailed in the last N days" that applied when this campaign was created (0 = off).
   skipRecentDays  Int            @default(0)
+  /// Gaps between this campaign's emails vary by up to ±N% (0 = exact spacing).
+  jitterPercent   Int            @default(0)
   createdAt       DateTime       @default(now())
   emails          Email[]
 

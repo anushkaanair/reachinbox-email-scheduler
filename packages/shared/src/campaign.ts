@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SendWindowSchema } from './sendWindow.js';
+import { spintaxError } from './spintax.js';
 
 /** Raw lead as parsed from CSV — the server validates addresses and reports invalid ones back. */
 export const LeadSchema = z.object({
@@ -12,9 +13,24 @@ export type Lead = z.infer<typeof LeadSchema>;
 
 export const MAX_LEADS_PER_CAMPAIGN = 10_000;
 
+/** Subject/body: required text whose {spin|tax} (if any) must be well-formed. */
+const templateText = (label: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .max(max)
+    .superRefine((v, ctx) => {
+      const err = spintaxError(v);
+      if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+    });
+
+/** Randomise the gap between emails by up to ±N% so the cadence looks human (0 = exact). */
+export const JitterPercentSchema = z.coerce.number().int().min(0).max(50).default(0);
+
 export const CreateCampaignInputSchema = z.object({
-  subject: z.string().trim().min(1, 'Subject is required').max(300),
-  body: z.string().trim().min(1, 'Body is required').max(50_000),
+  subject: templateText('Subject', 300),
+  body: templateText('Body', 50_000),
   leads: z.array(LeadSchema).min(1, 'Upload at least one lead').max(MAX_LEADS_PER_CAMPAIGN),
   /** ISO timestamp — when the first email goes out. */
   startAt: z.string().datetime({ offset: true }),
@@ -28,6 +44,7 @@ export const CreateCampaignInputSchema = z.object({
   sendWindow: SendWindowSchema.optional(),
   /** Skip anyone this user already emailed (or scheduled) within the last N days; 0 = off. */
   skipRecentDays: z.coerce.number().int().min(0).max(365).default(0),
+  jitterPercent: JitterPercentSchema,
 });
 export type CreateCampaignInput = z.infer<typeof CreateCampaignInputSchema>;
 

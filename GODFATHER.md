@@ -829,6 +829,9 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
 | 2026-09-29 | Native page scroll + sticky sidebar/header (no `<main overflow-auto>`) | axe `scrollable-region-focusable`; also nicer on mobile | A7 |
 | 2026-09-29 | Root `postinstall` also runs `prisma generate` | Fresh clone failed: Prisma's own postinstall looks for a schema at repo root, ours is in apps/api | A1 |
 | 2026-09-29 | `npm run setup` (idempotent) | Reviewers get from clone to running in one command | A1 |
+| 2026-09-30 | Spam check, spintax and send jitter live in `@ri/shared` as pure functions | Same code runs in the browser (live) and the API (validation, rendering); easy to test | A4/A7 |
+| 2026-09-30 | Spintax seeded by recipient address; resolved before merge tags | Preview, test send and real send agree; retries never change wording; lead data can't inject spintax | A4/A7 |
+| 2026-09-30 | Jitter varies campaign gaps (mean preserved), seeded by the lead list | Forecast matches the real schedule; the limiter's per-sender minimum is untouched | A4/A7 |
 | 2026-09-30 | Offline (rule-based) assistant "Ask Inbox" first; LLM mode deferred | No API key needed for reviewers; deterministic, cannot invent numbers; same tools/confirm flow can back an LLM later | A4/A7 |
 | 2026-09-30 | Every assistant change is proposed → Confirm → executed once (Redis GETDEL) → audited (`AssistantAction`) | Human-in-the-loop; single-use tokens namespaced per user; stale state re-checked at confirm | A4 |
 | 2026-09-30 | Assistant UI = Cmd+K palette + docked side panel sharing one history | Quick asks and long conversations; the panel pushes content at ≥1280px, overlays below, full-screen on phones | A7 |

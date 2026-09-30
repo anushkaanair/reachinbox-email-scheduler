@@ -6,3 +6,6 @@ export * from './integrations.js';
 export * from './insights.js';
 export * from './sendWindow.js';
 export * from './assistant.js';
+export * from './random.js';
+export * from './spintax.js';
+export * from './spam.js';

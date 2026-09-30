@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SendWindowSchema } from './sendWindow.js';
+import { spintaxError } from './spintax.js';
 import { EmailRowSchema, EmailTabSchema } from './email.js';
 
 // ── Search (Elasticsearch) ────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ export const PreflightInputSchema = z.object({
   senderIds: z.array(z.string()).optional(),
   sendWindow: SendWindowSchema.optional(),
   skipRecentDays: z.coerce.number().int().min(0).max(365).default(0),
+  jitterPercent: z.coerce.number().int().min(0).max(50).default(0),
 });
 export type PreflightInput = z.infer<typeof PreflightInputSchema>;
 
@@ -92,9 +94,14 @@ export type PreflightResponse = z.infer<typeof PreflightResponseSchema>;
 
 // ── Test send ────────────────────────────────────────────────────────────────
 
+const validSpintax = (v: string, ctx: z.RefinementCtx) => {
+  const err = spintaxError(v);
+  if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+};
+
 export const TestSendInputSchema = z.object({
-  subject: z.string().trim().min(1).max(300),
-  body: z.string().trim().min(1).max(50_000),
+  subject: z.string().trim().min(1).max(300).superRefine(validSpintax),
+  body: z.string().trim().min(1).max(50_000).superRefine(validSpintax),
   senderId: z.string().optional(),
   /** Values used to render the merge tags (usually the lead being previewed). */
   sample: z

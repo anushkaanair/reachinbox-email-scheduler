@@ -6,6 +6,7 @@ import {
   htmlToText,
   isHtmlEmpty,
   isValidEmail,
+  MAX_ATTACHMENTS_TOTAL_BYTES,
   makePreview,
   renderTemplate,
   spin,
@@ -30,8 +31,9 @@ export type SchedulingConfig = {
 };
 
 /** Same as the validated API input, but callers (tests, scripts) may omit the defaulted fields. */
-export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent' | 'bounceProtection' | 'bodyFormat'> & {
+export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent' | 'bounceProtection' | 'bodyFormat' | 'attachmentIds'> & {
   bodyFormat?: 'TEXT' | 'HTML';
+  attachmentIds?: string[];
   skipRecentDays?: number;
   jitterPercent?: number;
   bounceProtection?: Partial<BounceProtection>;
@@ -111,6 +113,13 @@ export async function createCampaign(
   // Never trust the browser's HTML: re-sanitise with the allowlist, and refuse a body with nothing in it.
   const bodyTemplate = isHtml ? sanitizeBody(input.body) : input.body;
   if (isHtml && isHtmlEmpty(bodyTemplate)) throw new AppError(400, 'VALIDATION', 'Body is required', { fieldErrors: { body: ['Body is required'] } });
+  const attachmentIds = [...new Set(input.attachmentIds ?? [])];
+  if (attachmentIds.length) {
+    // Only the owner's own staged files can go out, and never more than the campaign limit in total.
+    const staged = await prisma.attachment.findMany({ where: { id: { in: attachmentIds }, userId, campaignId: null }, select: { size: true } });
+    if (staged.length !== attachmentIds.length) throw new AppError(400, 'VALIDATION', 'One of the attachments is no longer available. Add it again.');
+    if (staged.reduce((n, a) => n + a.size, 0) > MAX_ATTACHMENTS_TOTAL_BYTES) throw new AppError(400, 'VALIDATION', 'Attachments can total up to 10 MB.');
+  }
   const normalized = normalizeLeads(input.leads);
   const { invalid, duplicates } = normalized;
   if (normalized.clean.length === 0) {
@@ -184,6 +193,10 @@ export async function createCampaign(
         totalRecipients: rows.length,
       },
     });
+    if (attachmentIds.length) {
+      const linked = await tx.attachment.updateMany({ where: { id: { in: attachmentIds }, userId, campaignId: null }, data: { campaignId } });
+      if (linked.count !== attachmentIds.length) throw new AppError(409, 'CONFLICT', 'An attachment changed while scheduling. Try again.'); // rolls the whole campaign back
+    }
     for (let i = 0; i < rows.length; i += 1000) {
       const chunk = rows.slice(i, i + 1000);
       await tx.email.createMany({ data: chunk });

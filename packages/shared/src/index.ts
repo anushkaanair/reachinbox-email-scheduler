@@ -15,3 +15,4 @@ export * from './onboarding.js';
 export * from './bounce.js';
 export * from './auth.js';
 export * from './html.js';
+export * from './attachments.js';

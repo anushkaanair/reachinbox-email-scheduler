@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ExternalLink,
   Gauge,
+  Paperclip,
   Pause,
   Play,
   RotateCcw,
@@ -20,7 +21,8 @@ import {
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { EmailDetail, EmailEvent } from '@ri/shared';
+import { formatBytes, type EmailDetail, type EmailEvent } from '@ri/shared';
+import { attachmentUrl } from '@/api/attachments';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { StarButton, StatusPill } from '@/components/email/EmailList';
 import { Button } from '@/components/ui/Button';
@@ -178,6 +180,22 @@ export function EmailDetailPage() {
             />
           ) : (
             <div className="mt-8 pl-0 text-[15px] leading-relaxed whitespace-pre-wrap sm:pl-[3.75rem]">{e.body}</div>
+          )}
+
+          {e.attachments.length > 0 && (
+            <ul className="mt-8 flex flex-wrap gap-3 sm:pl-[3.75rem]" aria-label="Attachments">
+              {e.attachments.map((a) => (
+                <li key={a.id}>
+                  <a href={attachmentUrl(a.id)} download={a.fileName} className="flex w-56 items-center gap-3 rounded-xl bg-neutral-soft px-3 py-2.5 transition-colors hover:bg-neutral-strong">
+                    <Paperclip className="size-4 shrink-0 text-muted" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium" title={a.fileName}>{a.fileName}</span>
+                      <span className="block text-xs text-muted">{formatBytes(a.size)}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
           )}
 
           <section aria-labelledby="delivery-h" className="mt-12 rounded-2xl border border-line p-5 sm:ml-[3.75rem]">

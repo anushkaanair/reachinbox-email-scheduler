@@ -1,6 +1,7 @@
 import { DelayedError, type Job } from 'bullmq';
 import type { EmailEventType, Prisma, PrismaClient } from '@prisma/client';
 import type { Logger } from 'pino';
+import { createAttachmentLoader, type AttachmentLoader } from '../mail/attachments.js';
 import type { SendFn } from '../mail/transport.js';
 import type { RateLimiter, Ticket } from '../throttle/rateLimiter.js';
 import { bounceVerdict, isAuthError, isHardBounce, isInSendWindow, nextSendWindowStart, SendWindowSchema, warmupCap, warmupDay } from '@ri/shared';
@@ -30,6 +31,8 @@ export type ProcessorDeps = {
   onEmailChanged?: (emailId: string, change: EmailChange) => Promise<void>;
   /** Called when the circuit breaker pauses a sender (→ live toast + Slack). */
   onSenderPaused?: (notice: SenderPausedNotice) => Promise<void>;
+  /** Reads a campaign's attachments (cached). Defaults to Postgres; tests can swap it. */
+  loadAttachments?: AttachmentLoader;
   /** Called when bounce protection pauses a campaign (→ live toast + Slack). */
   onCampaignPaused?: (notice: CampaignPausedNotice) => Promise<void>;
 };
@@ -52,6 +55,7 @@ const CLAIMABLE = ['SCHEDULED', 'RATE_LIMITED'] as const;
  */
 export function createEmailProcessor(deps: ProcessorDeps) {
   const { prisma, limiter, send, logger, config } = deps;
+  const loadAttachments = deps.loadAttachments ?? createAttachmentLoader(prisma);
 
   /** Records history (timeline/analytics) and notifies listeners. Never breaks the send path. */
   const changed = async (
@@ -204,6 +208,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
     }
 
     try {
+      const attachments = await loadAttachments(email.campaignId);
       const result = await send(email.sender, {
         emailId,
         to: email.toEmail,
@@ -211,6 +216,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         subject: email.subject,
         body: email.body,
         bodyIsHtml: email.bodyIsHtml,
+        ...(attachments.length ? { attachments } : {}),
       });
       await prisma.email.update({
         where: { id: emailId },

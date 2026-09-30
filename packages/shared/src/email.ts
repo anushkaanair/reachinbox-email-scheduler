@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AttachmentSchema } from './attachments.js';
 
 /** Mirrors the Prisma `EmailStatus` enum. The state machine is documented in GODFATHER §4. */
 export const EMAIL_STATUSES = [
@@ -101,6 +102,8 @@ export const EmailDetailSchema = EmailRowSchema.extend({
   body: z.string(),
   /** True when `body` is HTML (already sanitised by the server). */
   bodyIsHtml: z.boolean(),
+  /** Files that went (or will go) with this email. */
+  attachments: z.array(AttachmentSchema),
   messageId: z.string().nullable(),
   attempts: z.number(),
   rateLimitedCount: z.number(),

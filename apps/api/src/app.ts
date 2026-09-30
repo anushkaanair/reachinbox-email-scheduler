@@ -28,6 +28,7 @@ import { createSlackService } from './modules/slack/index.js';
 import { slackRouter } from './modules/slack/routes.js';
 import type { SlackService } from './modules/slack/slackService.js';
 import { healthRouter } from './modules/health/routes.js';
+import { attachmentsRouter } from './modules/attachments/routes.js';
 import { onboardingRouter } from './modules/onboarding/routes.js';
 import { sendersRouter, type SendersDeps } from './modules/senders/routes.js';
 import { BULL_BOARD_PATH, bullBoardRouter } from './queues/bullboard.js';
@@ -92,6 +93,8 @@ export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack
   );
   app.use('/api/slack', slackRouter(slack, env.WEB_URL));
   app.use('/api/onboarding', onboardingRouter);
+  app.post('/api/attachments', requireAuth, requestLimit(redis, { name: 'attach', limit: 30, windowSec: 60, key: (req) => req.userId ?? 'anon' }));
+  app.use('/api/attachments', attachmentsRouter);
   app.post(
     '/api/senders/:id/test',
     requireAuth,

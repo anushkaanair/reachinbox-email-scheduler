@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { ApiError } from '@/api/client';
 import { ContentCheckCard } from '@/components/compose/ContentCheckCard';
 import { ForecastCard } from '@/components/compose/ForecastCard';
+import { AttachButton, AttachmentList, useAttachments } from '@/components/compose/Attachments';
 import { RecipientsField } from '@/components/compose/RecipientsField';
 import { RichTextEditor, type RichTextHandle } from '@/components/compose/RichTextEditor';
 import { SendLater } from '@/components/compose/SendLater';
@@ -68,6 +69,7 @@ export function ComposePage() {
   const dnc = useSuppressions();
   const [recipients, setRecipients] = useState<Recipients>(EMPTY_RECIPIENTS);
   const [sendAt, setSendAt] = useState<Date | null>(null); // null = send straight away
+  const files = useAttachments();
   const [leadsError, setLeadsError] = useState<string>();
   const [leadsKey, setLeadsKey] = useState(''); // identifies the uploaded list in the forecast cache
   const [rules, setRules] = useState<Rules>(defaultRules);
@@ -161,6 +163,7 @@ export function ComposePage() {
         subject: v.subject,
         body: v.body,
         bodyFormat: 'HTML' as const,
+        attachmentIds: files.ids,
         leads: leads.leads,
         startAt: new Date(v.startAt).toISOString(),
         delayBetweenSeconds: v.delayBetweenSeconds,
@@ -219,6 +222,7 @@ export function ComposePage() {
           <ArrowLeft className="size-6" aria-hidden />
         </Link>
         <h1 className="flex-1 text-2xl font-medium tracking-tight">Compose New Email</h1>
+        <AttachButton count={files.items.length} busy={files.busy} onPick={(f) => void files.add(f)} />
         <SendLater value={sendAt} onChange={(d) => { setSendAt(d); setValue('startAt', toLocalInput(d ?? new Date()), { shouldValidate: true }); }} />
         <Button
           type="submit"
@@ -330,6 +334,8 @@ export function ComposePage() {
               </p>
             </div>
           </section>
+
+          <AttachmentList items={files.items} onRemove={(id) => void files.remove(id)} error={files.error} />
 
           <ContentCheckCard subject={subject} body={htmlToText(body)} onFix={applyFix} />
 

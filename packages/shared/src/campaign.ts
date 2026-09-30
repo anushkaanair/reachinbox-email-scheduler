@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BounceProtectionSchema, DEFAULT_BOUNCE_PROTECTION } from './bounce.js';
+import { MAX_ATTACHMENTS } from './attachments.js';
 import { BODY_FORMATS } from './html.js';
 import { SendWindowSchema } from './sendWindow.js';
 import { spintaxError } from './spintax.js';
@@ -35,6 +36,8 @@ export const CreateCampaignInputSchema = z.object({
   body: templateText('Body', 50_000),
   /** TEXT = plain (default); HTML = rich text from the editor, sanitised again on the server. */
   bodyFormat: z.enum(BODY_FORMATS).default('TEXT'),
+  /** Files uploaded first (POST /api/attachments); they go out with every email of the campaign. */
+  attachmentIds: z.array(z.string().max(64)).max(MAX_ATTACHMENTS).default([]),
   leads: z.array(LeadSchema).min(1, 'Upload at least one lead').max(MAX_LEADS_PER_CAMPAIGN),
   /** ISO timestamp — when the first email goes out. */
   startAt: z.string().datetime({ offset: true }),

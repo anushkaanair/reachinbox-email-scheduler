@@ -24,6 +24,7 @@ model User {
   slack            SlackConnection?
   suppressed       SuppressedEmail[]
   assistantActions AssistantAction[]
+  attachments      Attachment[]
   /// First-run onboarding answers, tour progress and checklist state (see shared/onboarding.ts). Null = not seen yet.
   onboarding       Json?
 }
@@ -148,8 +149,27 @@ model Campaign {
   pauseReason     String?
   createdAt       DateTime       @default(now())
   emails          Email[]
+  attachments     Attachment[]
 
   @@index([userId, createdAt])
+}
+
+/// A file sent with every email of a campaign. Uploaded first (campaignId null = staged), then linked when the
+/// campaign is scheduled. Staged files nobody scheduled are swept on the owner's next upload (no timer).
+model Attachment {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  fileName    String
+  contentType String
+  size        Int
+  data        Bytes
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, campaignId])
+  @@index([campaignId])
 }
 
 model Email {

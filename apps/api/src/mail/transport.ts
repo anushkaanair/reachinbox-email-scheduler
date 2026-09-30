@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import type { Sender } from '@prisma/client';
 import { escapeHtml as esc, htmlToText } from '@ri/shared';
 import { decrypt } from '../lib/crypto.js';
+import type { FileToSend } from './attachments.js';
 
 /** One pooled SMTP connection set per sender, per process. A cache only — never shared state. */
 const pool = new Map<string, Transporter>();
@@ -30,6 +31,7 @@ export type OutgoingEmail = {
   body: string;
   /** True when `body` is sanitised HTML. */
   bodyIsHtml?: boolean;
+  attachments?: FileToSend[];
 };
 
 export type SendResult = { messageId: string; previewUrl: string | null };
@@ -63,6 +65,7 @@ export const sendViaSmtp: SendFn = async (sender, email) => {
     html: htmlFor(email, sender.signature),
     messageId: messageIdFor(email.emailId),
     headers: { 'X-ReachInbox-Email-Id': email.emailId },
+    ...(email.attachments?.length ? { attachments: email.attachments } : {}),
   });
   const preview = nodemailer.getTestMessageUrl(info);
   return { messageId: info.messageId, previewUrl: typeof preview === 'string' ? preview : null };

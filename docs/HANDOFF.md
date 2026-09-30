@@ -51,8 +51,7 @@ Run `git status` — these are the pending files:
 
 Re-run: `npm run typecheck && npx eslint . && npm test && npm run check:no-cron && npm run build && npm audit`
 
-### Branch `feature/reachinbox-parity` (local, not pushed unless the owner says so)
-Everything below is on this branch; `main` is still the submitted version.
+### Merged into `main` (from `feature/reachinbox-parity`; local, not pushed unless the owner says so)
 - **Figma-faithful UI** (from the owner's screenshots; the Figma URL itself can't be opened by our tools): light default, pixel "ONB" logo, sidebar account card, flat email rows with orange time pill and star, full-page email view, Compose with Send Later popover, Figma login card.
 - **Email + password login** (`modules/auth/password.ts`), Google sign-in links an existing password account and clears the password.
 - **Email accounts overhaul**, **onboarding + tour**, **bounce protection** (see README "Beyond the brief").

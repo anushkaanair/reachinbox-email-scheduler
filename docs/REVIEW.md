@@ -239,7 +239,7 @@ We expect:
 | Not verifiable by us | **Pixel match with the Figma** — the file could not be opened by our tooling; the UI follows the layout the brief describes |
 | Still to do (owner) | Record the ≤ 5-min demo video (script in `docs/DEMO_SCRIPT.md`); invite `Mitrajit` and `Yadav036` to the repo |
 | Beyond the brief | **30+ additional features** (listed below) |
-| Quality | **447 automated tests** (412 API against real Postgres/Redis/Elasticsearch + 35 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations on every page in the light theme (dark not re-audited since the Figma restyle) · CI · no cron (enforced by a CI check) |
+| Quality | **447 automated tests** (412 API against real Postgres/Redis/Elasticsearch + 35 web) · strict TypeScript · ESLint · `npm audit`: 0 vulnerabilities · WCAG 2.1 AA (axe): 0 violations on every page in both the light and dark themes · CI · no cron (enforced by a CI check) |
 
 Evidence for every measured claim below is in `docs/VERIFICATION.md`.
 

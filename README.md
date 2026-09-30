@@ -37,7 +37,7 @@ No cron anywhere — every send time is a BullMQ delayed job.
 | **Strict throttling**        | Min gap between two sends of one sender: **2,034 ms** measured for a 2,000 ms setting                                                                                                                                                |
 | **Hourly limits under load** | 1,000 emails due at once → **0 dropped**, exactly 4/sender/window in demo mode, the rest deferred in order                                                                                                                           |
 | **Slack alert**              | OAuth flow, encrypted token storage and one alert per sender per window are built and tested against a mocked Slack API (11 tests); a live run against real Slack needs your own Slack app ([setup below](#slack-rate-limit-alerts)) |
-| **Quality gates**            | 447 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (light theme, every page; dark not re-audited since the Figma restyle) · CI                                                                                                                       |
+| **Quality gates**            | 447 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (light and dark, every page) · CI                                                                                                                       |
 
 ---
 
@@ -363,14 +363,13 @@ Cancelling the remaining 976 took 0.18 s.
 
 ## Screenshots
 
-|                                                                                                               |                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| ![Compose](docs/screenshots/compose.png) **Compose** — upload report, merge tags, ETA                         | ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel              |
-| ![Detail](docs/screenshots/drawer.png) **Email detail** — timeline incl. rate-limit deferral                  | ![Analytics](docs/screenshots/analytics.png) **Analytics** — live limit alert and quota meters               |
-| ![Search](docs/screenshots/search.png) **Search** — Elasticsearch with highlights                             | ![Login](docs/screenshots/login.png) **Login** — Google OAuth                                                |
-| ![Dark](docs/screenshots/campaigns-dark.png) **Dark theme** — deep-space backdrop, frosted cards              | ![Appearance](docs/screenshots/settings-appearance-dark.png) **Settings → Appearance** — light, dark, system |
-| ![Content check](docs/screenshots/content-check-dark.png) **Content check** — spam score with one-click fixes | ![Jitter](docs/screenshots/campaigns-dark.png) **Campaigns (dark)**                                          |
-| ![Palette](docs/screenshots/assistant-palette-dark.png) **Ask Inbox: Cmd+K palette** — quick answers          | ![Panel](docs/screenshots/assistant-panel-light.png) **Ask Inbox: side panel** — confirm before any change   |
+|                                                                                                                      |                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![Login](docs/screenshots/login.png) **Login** — Google, or email + password                                          | ![Scheduled](docs/screenshots/scheduled.png) **Scheduled** — send time in the pill, star, search and filter   |
+| ![Email](docs/screenshots/email.png) **Email page** — the message, delivery status and timeline                       | ![Compose](docs/screenshots/compose.png) **Compose** — recipient chips, rich text, Send Later, sending rules  |
+| ![Sent](docs/screenshots/sent.png) **Sent** — delivered and failed, with previews                                     | ![Email accounts](docs/screenshots/email-accounts.png) **Email accounts** — connect, health, warm-up, limits  |
+| ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel, bounce protection   | ![Analytics](docs/screenshots/analytics.png) **Analytics** — sent, failed, deferred and quota meters          |
+| ![Dark](docs/screenshots/scheduled-dark.png) **Dark theme** — optional (light is the default)                         |                                                                                                              |
 
 ---
 

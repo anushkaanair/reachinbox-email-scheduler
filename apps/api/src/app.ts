@@ -16,7 +16,11 @@ import { RateLimiter } from './throttle/rateLimiter.js';
 import { configureGoogle } from './modules/auth/google.js';
 import { authRouter } from './modules/auth/routes.js';
 import { requireAdmin, requireAuth } from './modules/auth/session.js';
-import { redactUrl, requestLimit } from './lib/httpSecurity.js';
+import { requestLimit, requestLogSerializers } from './lib/httpSecurity.js';
+import type { SendFn } from './mail/transport.js';
+import { assistantRouter } from './modules/assistant/routes.js';
+import type { AssistantDeps } from './modules/assistant/engine.js';
+import { suppressionsRouter } from './modules/suppressions/routes.js';
 import { campaignsRouter } from './modules/campaigns/routes.js';
 import { emailsRouter } from './modules/emails/routes.js';
 import { EmailSearch } from './modules/search/emailSearch.js';
@@ -32,7 +36,7 @@ import { createQueues, type QueueSet } from './queues/queues.js';
  * Builds the Express app without listening, so tests can mount it with supertest.
  * `queues` is injectable so tests can isolate from a running dev worker.
  */
-export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack?: SlackService } = {}) {
+export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack?: SlackService; send?: SendFn; health?: AssistantDeps['health'] } = {}) {
   const live = new LiveHub(() => createRedis('live-sub'));
   const limiter = new RateLimiter(redis, { prefix: '', windowMs: env.RATE_WINDOW_SECONDS * 1000, minDelayMs: env.MIN_DELAY_BETWEEN_EMAILS_MS });
   const queues = opts.queues ?? createQueues(redis);
@@ -51,10 +55,8 @@ export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack
     pinoHttp({
       logger,
       autoLogging: { ignore: (req) => req.url === '/healthz' || req.url?.startsWith(BULL_BOARD_PATH) === true },
-      // Never log OAuth codes/state or cookies (S1).
-      serializers: {
-        req: (req: { id: unknown; method: string; url: string }) => ({ id: req.id, method: req.method, url: redactUrl(req.url) }),
-      },
+      // Never log OAuth codes/state, cookies or any headers (S1).
+      serializers: requestLogSerializers,
     }),
   );
   app.use(passport.initialize());
@@ -68,8 +70,16 @@ export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack
     requireAuth,
     requestLimit(redis, { name: 'campaigns', limit: 20, windowSec: 60, key: (req) => req.userId ?? 'anon' }),
   );
+  app.post(
+    '/api/campaigns/test-send',
+    requireAuth,
+    requestLimit(redis, { name: 'test-send', limit: 10, windowSec: 60, key: (req) => req.userId ?? 'anon' }),
+  );
+  app.use('/api/assistant', requireAuth, requestLimit(redis, { name: 'assistant', limit: 60, windowSec: 60, key: (req) => req.userId ?? 'anon' }));
   app.use('/api/auth', authRouter);
-  app.use('/api/campaigns', campaignsRouter(queues));
+  app.use('/api/campaigns', campaignsRouter(queues, { send: opts.send }));
+  app.use('/api/suppressions', suppressionsRouter);
+  app.use('/api/assistant', assistantRouter(queues, { search, health: opts.health }));
   app.use('/api/emails', emailsRouter(search, { prisma, queues, redis }));
   app.get('/api/events', requireAuth, live.handler);
   app.use(

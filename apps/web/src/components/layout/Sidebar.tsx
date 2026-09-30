@@ -38,7 +38,7 @@ export function Sidebar() {
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-          isActive ? 'bg-brand-50 text-brand-700' : 'text-muted hover:bg-canvas hover:text-ink',
+          isActive ? 'bg-brand-50 text-brand-700' : 'text-muted hover:bg-neutral-soft hover:text-ink',
         )
       }
     >
@@ -73,7 +73,7 @@ export function Sidebar() {
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-              isActive ? 'bg-brand-50 text-brand-700' : 'text-muted hover:bg-canvas hover:text-ink',
+              isActive ? 'bg-brand-50 text-brand-700' : 'text-muted hover:bg-neutral-soft hover:text-ink',
             )
           }
         >

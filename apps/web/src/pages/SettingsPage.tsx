@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SLACK_CONNECT_URL } from '@/api/integrations';
+import { AppearanceCard } from '@/components/settings/AppearanceCard';
+import { SuppressionCard } from '@/components/settings/SuppressionCard';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -50,7 +52,7 @@ function SlackCard() {
             <Skeleton className="h-9 w-36" />
           </div>
         ) : status.error ? (
-          <p className="text-sm text-red-600">Couldn’t load Slack status: {status.error.message}</p>
+          <p className="text-sm text-danger">Couldn’t load Slack status: {status.error.message}</p>
         ) : !s!.configured ? (
           <div className="flex gap-2 rounded-lg bg-canvas p-3 text-sm text-muted">
             <Info className="mt-0.5 size-4 shrink-0" />
@@ -70,7 +72,7 @@ function SlackCard() {
               {s!.valid ? (
                 <CheckCircle2 className="mt-0.5 size-4 text-brand-600" />
               ) : (
-                <AlertTriangle className="mt-0.5 size-4 text-amber-600" />
+                <AlertTriangle className="mt-0.5 size-4 text-warn" />
               )}
               <p>
                 {s!.valid ? 'Posting to ' : 'Slack stopped accepting messages for '}
@@ -126,7 +128,11 @@ export function SettingsPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
       <p className="mb-6 text-sm text-muted">Integrations and notifications.</p>
-      <SlackCard />
+      <div className="flex flex-col gap-6">
+        <AppearanceCard />
+        <SlackCard />
+        <SuppressionCard />
+      </div>
     </div>
   );
 }

@@ -1,27 +1,160 @@
 @import 'tailwindcss';
 
-/* Design tokens — provisional until the Figma export lands in design/tokens.md (GODFATHER §9.0). */
-@theme {
+/* `dark:` utilities follow the app's own theme switch (data-theme on <html>), not just the OS setting. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* ── Design tokens ────────────────────────────────────────────────────────────────────────────
+   Two layers: raw values per theme (--c-*, below) → Tailwind names (@theme inline). Every colour
+   in the UI comes from here, so a theme is just a different set of --c-* values. */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --c-canvas: #f7f8fa;
+  --c-surface: #ffffff;
+  --c-surface-solid: #ffffff; /* popovers, dialogs, drawers: never translucent */
+  --c-line: #e5e7eb;
+  --c-ink: #0f172a;
+  --c-muted: #5f6b7c; /* ≥ 4.5:1 on canvas and surface */
+  --c-soft: #475569;
+  --c-faint: #cbd5e1;
+  --c-neutral-soft: #f1f5f9;
+  --c-neutral-strong: #e2e8f0;
+
+  --c-brand-50: #e9f8f0;
+  --c-brand-100: #c9eedb;
+  --c-brand-500: #0b9a5b;
+  --c-brand-600: #08844d; /* white text on this is 4.75:1 */
+  --c-brand-700: #066b3e;
+  --c-on-brand: #ffffff;
+
+  --c-danger: #b91c1c;
+  --c-danger-soft: #fef2f2;
+  --c-danger-line: #fecaca;
+  --c-danger-solid: #dc2626;
+  --c-danger-strong: #b91c1c;
+  --c-on-danger: #ffffff;
+
+  --c-warn: #92400e;
+  --c-warn-soft: #fffbeb;
+  --c-warn-line: #fde68a;
+  --c-warn-mark: rgb(253 230 138 / 0.75);
+
+  --c-info: #0369a1;
+  --c-info-soft: #f0f9ff;
+  --c-info-line: #bae6fd;
+
+  /* The assistant's colour: violet. */
+  --c-accent: #6d28d9;
+  --c-accent-soft: #f3efff;
+  --c-on-accent: #ffffff;
+  --c-focus: #0b9a5b;
+
+  /* Status series for charts and progress (checked with the dataviz palette validator). */
+  --c-st-sent: #0b9a5b;
+  --c-st-deferred: #e0a100;
+  --c-st-failed: #b42318;
+  --c-st-pending: #94a3b8;
+
+  --c-shadow: 15 23 42;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-canvas: #05060d;
+  --c-surface: rgb(18 20 44 / 0.6); /* frosted glass over the space backdrop */
+  --c-surface-solid: #0d0f24;
+  --c-line: rgb(255 255 255 / 0.1);
+  --c-ink: #eceeff;
+  --c-muted: #a2a8cc;
+  --c-soft: #c3c8e8;
+  --c-faint: rgb(255 255 255 / 0.28);
+  --c-neutral-soft: rgb(255 255 255 / 0.07);
+  --c-neutral-strong: rgb(255 255 255 / 0.14);
+
+  --c-brand-50: rgb(34 196 119 / 0.13);
+  --c-brand-100: rgb(34 196 119 / 0.26);
+  --c-brand-500: #22c477;
+  --c-brand-600: #22c477;
+  --c-brand-700: #5be3a3; /* text-on-dark and hover */
+  --c-on-brand: #04170d;
+
+  --c-danger: #ff8fa5;
+  --c-danger-soft: rgb(224 80 111 / 0.15);
+  --c-danger-line: rgb(224 80 111 / 0.42);
+  --c-danger-solid: #e0506f;
+  --c-danger-strong: #f07a92;
+  --c-on-danger: #1c0710;
+
+  --c-warn: #f5c14e;
+  --c-warn-soft: rgb(194 134 16 / 0.17);
+  --c-warn-line: rgb(194 134 16 / 0.5);
+  --c-warn-mark: rgb(245 193 78 / 0.3);
+
+  --c-info: #7cc4f4;
+  --c-info-soft: rgb(56 152 222 / 0.15);
+  --c-info-line: rgb(56 152 222 / 0.42);
+
+  --c-accent: #b3a7ff;
+  --c-accent-soft: rgb(139 124 246 / 0.18);
+  --c-on-accent: #150a3a;
+  --c-focus: #b3a7ff;
+
+  --c-st-sent: #1db06a;
+  --c-st-deferred: #c28610;
+  --c-st-failed: #e0506f;
+  --c-st-pending: #7b83a8;
+
+  --c-shadow: 0 0 0;
+}
+
+@theme inline {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-  --color-brand-50: #e9f8f0;
-  --color-brand-100: #c9eedb;
-  --color-brand-500: #0b9a5b;
-  --color-brand-600: #08844d;
-  --color-brand-700: #066b3e;
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-solid: var(--c-surface-solid);
+  --color-line: var(--c-line);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-soft: var(--c-soft);
+  --color-faint: var(--c-faint);
+  --color-neutral-soft: var(--c-neutral-soft);
+  --color-neutral-strong: var(--c-neutral-strong);
 
-  --color-ink: #0f172a;
-  --color-muted: #5f6b7c; /* ≥ 4.5:1 on canvas and surface (was #64748b: 4.47 on canvas) */
-  --color-line: #e5e7eb;
-  --color-canvas: #f7f8fa;
-  --color-surface: #ffffff;
+  --color-brand-50: var(--c-brand-50);
+  --color-brand-100: var(--c-brand-100);
+  --color-brand-500: var(--c-brand-500);
+  --color-brand-600: var(--c-brand-600);
+  --color-brand-700: var(--c-brand-700);
+  --color-on-brand: var(--c-on-brand);
 
-  /* Status series for charts/progress (validated with the dataviz palette checker; the amber's
-     low contrast is relieved by text legends + a table view). */
-  --color-st-sent: #0b9a5b;
-  --color-st-deferred: #e0a100;
-  --color-st-failed: #b42318;
-  --color-st-pending: #94a3b8;
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-line: var(--c-danger-line);
+  --color-danger-solid: var(--c-danger-solid);
+  --color-danger-strong: var(--c-danger-strong);
+  --color-on-danger: var(--c-on-danger);
+
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-warn-line: var(--c-warn-line);
+  --color-warn-mark: var(--c-warn-mark);
+
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+  --color-info-line: var(--c-info-line);
+
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-on-accent: var(--c-on-accent);
+
+  --color-st-sent: var(--c-st-sent);
+  --color-st-deferred: var(--c-st-deferred);
+  --color-st-failed: var(--c-st-failed);
+  --color-st-pending: var(--c-st-pending);
 }
 
 @layer base {
@@ -34,6 +167,143 @@
     @apply bg-canvas text-ink font-sans antialiased;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-500;
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
   }
+  ::selection {
+    background: color-mix(in srgb, var(--c-accent) 32%, transparent);
+  }
+}
+
+/* ── Space backdrop ───────────────────────────────────────────────────────────────────────────
+   One fixed layer behind the whole app. Light: a faint brand-green glow. Dark: a deep-indigo sky
+   with a violet aurora and two tiles of stars that twinkle at different speeds. Purely visual
+   (pointer-events: none) and static under prefers-reduced-motion. */
+
+.space-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(900px 320px at 50% -120px, rgb(11 154 91 / 0.07), transparent 70%), var(--c-canvas);
+}
+
+[data-theme='dark'] .space-bg {
+  background:
+    radial-gradient(1200px 600px at 50% -200px, rgb(86 72 232 / 0.5), transparent 66%),
+    radial-gradient(780px 480px at 108% 2%, rgb(34 196 119 / 0.11), transparent 64%),
+    radial-gradient(700px 480px at -6% 38%, rgb(64 126 240 / 0.14), transparent 62%),
+    radial-gradient(900px 520px at 60% 115%, rgb(120 70 220 / 0.1), transparent 62%),
+    var(--c-canvas);
+}
+
+.space-bg::before,
+.space-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+[data-theme='dark'] .space-bg::before,
+[data-theme='dark'] .space-bg::after {
+  opacity: 1;
+}
+
+[data-theme='dark'] .space-bg::before {
+  background-image:
+    radial-gradient(1px 1px at 477px 419px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 432px 26px, rgb(200 210 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 602px 444px, rgb(200 210 255 / 0.55), transparent),
+    radial-gradient(1.8px 1.8px at 90px 185px, rgb(255 255 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 388px 333px, rgb(255 255 255 / 1), transparent),
+    radial-gradient(1.8px 1.8px at 252px 11px, rgb(200 210 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 528px 561px, rgb(232 226 255 / 0.7), transparent),
+    radial-gradient(1px 1px at 548px 172px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 430px 544px, rgb(255 255 255 / 0.7), transparent),
+    radial-gradient(1px 1px at 39px 407px, rgb(232 226 255 / 1), transparent),
+    radial-gradient(1px 1px at 549px 275px, rgb(232 226 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 339px 199px, rgb(214 224 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 194px 72px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(1.4px 1.4px at 262px 450px, rgb(214 224 255 / 0.85), transparent),
+    radial-gradient(1.8px 1.8px at 493px 51px, rgb(214 224 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 96px 44px, rgb(214 224 255 / 0.7), transparent),
+    radial-gradient(1px 1px at 405px 426px, rgb(214 224 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 79px 624px, rgb(255 255 255 / 0.85), transparent),
+    radial-gradient(1.8px 1.8px at 49px 224px, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1.4px 1.4px at 400px 397px, rgb(255 255 255 / 1), transparent);
+  background-size: 640px 640px;
+  animation: twinkle 7s ease-in-out infinite;
+}
+
+[data-theme='dark'] .space-bg::after {
+  background-image:
+    radial-gradient(1.3px 1.3px at 871px 307px, rgb(232 226 255 / 0.55), transparent),
+    radial-gradient(1.3px 1.3px at 644px 380px, rgb(255 255 255 / 0.85), transparent),
+    radial-gradient(1.3px 1.3px at 675px 120px, rgb(200 210 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 614px 552px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(1px 1px at 638px 543px, rgb(255 255 255 / 1), transparent),
+    radial-gradient(1px 1px at 80px 885px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(2.1px 2.1px at 788px 673px, rgb(200 210 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 502px 671px, rgb(232 226 255 / 0.85), transparent),
+    radial-gradient(1.7px 1.7px at 960px 65px, rgb(200 210 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 919px 38px, rgb(255 255 255 / 0.85), transparent),
+    radial-gradient(2.1px 2.1px at 94px 362px, rgb(232 226 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 242px 19px, rgb(232 226 255 / 0.55), transparent),
+    radial-gradient(1.7px 1.7px at 342px 179px, rgb(232 226 255 / 1), transparent),
+    radial-gradient(1.3px 1.3px at 836px 745px, rgb(200 210 255 / 0.7), transparent),
+    radial-gradient(2.1px 2.1px at 835px 444px, rgb(255 255 255 / 0.7), transparent),
+    radial-gradient(2.1px 2.1px at 123px 467px, rgb(200 210 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 438px 550px, rgb(255 255 255 / 0.7), transparent),
+    radial-gradient(1px 1px at 676px 796px, rgb(255 255 255 / 1), transparent),
+    radial-gradient(1px 1px at 251px 195px, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1px 1px at 207px 274px, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.2px 1.2px at 269px 42px, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 216px 260px, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.2px 1.2px at 263px 187px, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1.2px 1.2px at 85px 119px, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1px 1px at 35px 248px, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1.2px 1.2px at 242px 298px, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.2px 1.2px at 189px 323px, rgb(255 255 255 / 0.4), transparent);
+  background-size: 970px 970px, 410px 410px;
+  animation: twinkle 11s ease-in-out -4s infinite;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space-bg::before,
+  .space-bg::after {
+    animation: none !important;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Frosted glass for cards and panels in the dark theme (solid surfaces stay opaque). */
+[data-theme='dark'] .bg-surface {
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* Dialogs and drawers sit on their own backdrop; make it a soft dark veil in both themes. */
+dialog::backdrop {
+  background: rgb(4 5 14 / 0.5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* Soft glow on the primary action so it reads as the one bright thing in the dark theme. */
+[data-theme='dark'] .glow-brand {
+  box-shadow: 0 0 22px -6px rgb(34 196 119 / 0.55);
 }

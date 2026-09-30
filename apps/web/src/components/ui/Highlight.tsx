@@ -11,7 +11,7 @@ export function Highlight({ text }: { text: string }) {
     <>
       {text.split(SPLIT).map((part, i) =>
         part.startsWith(HL_OPEN) ? (
-          <mark key={i} className="rounded-sm bg-amber-200/70 px-0.5 text-ink">
+          <mark key={i} className="rounded-sm bg-warn-mark px-0.5 text-ink">
             {part.slice(1, -1)}
           </mark>
         ) : (

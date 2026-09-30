@@ -1,10 +1,11 @@
-import { RefreshCw, Sparkles, Zap } from 'lucide-react';
+import { Download, RefreshCw, Sparkles, Zap } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { EmailTab } from '@ri/shared';
 import { EmailDetailDrawer } from '@/components/email/EmailDetailDrawer';
 import { EmailTable, type TableRow } from '@/components/email/EmailTable';
 import { SearchBar } from '@/components/email/SearchBar';
-import { Button } from '@/components/ui/Button';
+import { exportUrl } from '@/api/campaigns';
+import { Button, buttonClass } from '@/components/ui/Button';
 import { useEmails } from '@/hooks/useEmails';
 import { useDebounced, useEmailSearch } from '@/hooks/useIntegrations';
 
@@ -49,6 +50,15 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
         </div>
         <div className="flex items-center gap-2">
           <SearchBar value={q} onChange={setQ} loading={search.isFetching} />
+          <a
+            href={exportUrl({ tab })}
+            download
+            className={buttonClass('secondary', 'sm', 'h-9')}
+            aria-label={`Export ${tab === 'sent' ? 'sent and failed' : 'scheduled'} emails as CSV`}
+          >
+            <Download className="size-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </a>
           <Button
             variant="secondary"
             size="sm"
@@ -68,9 +78,9 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
             {search.data && !search.isPlaceholderData ? (
               <>
                 {search.data.approximate ? (
-                  <Sparkles className="size-3.5 text-violet-500" aria-hidden />
+                  <Sparkles className="size-3.5 text-accent" aria-hidden />
                 ) : (
-                  <Zap className="size-3.5 text-amber-500" aria-hidden />
+                  <Zap className="size-3.5 text-warn" aria-hidden />
                 )}
                 {nf.format(search.data.total)} {search.data.approximate ? 'approximate ' : ''}
                 result{search.data.total === 1 ? '' : 's'} for “{debounced}” · {search.data.tookMs} ms · Elasticsearch

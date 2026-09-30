@@ -8,11 +8,13 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Sparkles,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { EmailDetail, EmailEvent } from '@ri/shared';
+import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -22,15 +24,15 @@ import { formatWhen } from '@/lib/format';
 import { EmailStatusCell } from './StatusBadge';
 
 const EVENT_UI: Record<EmailEvent['type'], { icon: LucideIcon; label: string; tone: string }> = {
-  SCHEDULED: { icon: CalendarClock, label: 'Scheduled', tone: 'text-sky-600 bg-sky-50' },
-  RATE_LIMITED: { icon: Gauge, label: 'Hourly limit reached — deferred', tone: 'text-amber-700 bg-amber-50' },
-  SEND_ERROR: { icon: TriangleAlert, label: 'Send attempt failed — will retry', tone: 'text-amber-700 bg-amber-50' },
+  SCHEDULED: { icon: CalendarClock, label: 'Scheduled', tone: 'text-info bg-info-soft' },
+  RATE_LIMITED: { icon: Gauge, label: 'Hourly limit reached — deferred', tone: 'text-warn bg-warn-soft' },
+  SEND_ERROR: { icon: TriangleAlert, label: 'Send attempt failed — will retry', tone: 'text-warn bg-warn-soft' },
   SENT: { icon: CheckCircle2, label: 'Sent', tone: 'text-brand-700 bg-brand-50' },
-  FAILED: { icon: AlertOctagon, label: 'Failed', tone: 'text-red-700 bg-red-50' },
-  RETRIED: { icon: RotateCcw, label: 'Retried manually', tone: 'text-sky-600 bg-sky-50' },
-  CANCELLED: { icon: Ban, label: 'Cancelled', tone: 'text-slate-600 bg-slate-100' },
-  PAUSED: { icon: Pause, label: 'Campaign paused', tone: 'text-slate-600 bg-slate-100' },
-  RESUMED: { icon: Play, label: 'Campaign resumed', tone: 'text-sky-600 bg-sky-50' },
+  FAILED: { icon: AlertOctagon, label: 'Failed', tone: 'text-danger bg-danger-soft' },
+  RETRIED: { icon: RotateCcw, label: 'Retried manually', tone: 'text-info bg-info-soft' },
+  CANCELLED: { icon: Ban, label: 'Cancelled', tone: 'text-soft bg-neutral-soft' },
+  PAUSED: { icon: Pause, label: 'Campaign paused', tone: 'text-soft bg-neutral-soft' },
+  RESUMED: { icon: Play, label: 'Campaign resumed', tone: 'text-info bg-info-soft' },
 };
 
 function eventDetail(e: EmailEvent): string | null {
@@ -110,6 +112,7 @@ function Body({ e }: { e: EmailDetail }) {
 export function EmailDetailDrawer({ emailId, onClose }: { emailId: string | null; onClose: () => void }) {
   const { data: e, isPending, error } = useEmailDetail(emailId);
   const action = useEmailAction();
+  const { askAbout } = useAssistant();
   const run = (a: 'retry' | 'cancel') =>
     action.mutate({ id: emailId!, action: a }, { onSuccess: () => toast.success(a === 'retry' ? 'Email re-queued' : 'Email cancelled') });
 
@@ -132,6 +135,16 @@ export function EmailDetailDrawer({ emailId, onClose }: { emailId: string | null
       footer={
         e && (
           <>
+            <Button
+              variant="ghost"
+              className="mr-auto hover:text-accent"
+              onClick={() => {
+                onClose();
+                askAbout(`What happened to ${e.toEmail}?`, { emailId: e.id, campaignId: e.campaignId });
+              }}
+            >
+              <Sparkles className="size-4 text-accent" aria-hidden /> Ask about this
+            </Button>
             {pending && (
               <Button variant="ghost" loading={action.isPending} onClick={() => run('cancel')}>
                 <Ban className="size-4" /> Cancel email
@@ -154,7 +167,7 @@ export function EmailDetailDrawer({ emailId, onClose }: { emailId: string | null
       }
     >
       {error ? (
-        <p className="text-sm text-red-600">{error.message}</p>
+        <p className="text-sm text-danger">{error.message}</p>
       ) : isPending || !e ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-4 w-full" />)}

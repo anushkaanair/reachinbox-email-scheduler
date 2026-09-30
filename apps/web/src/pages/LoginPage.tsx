@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { GOOGLE_LOGIN_URL } from '@/api/auth';
 import { Logo } from '@/components/layout/Logo';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Spinner } from '@/components/ui/Spinner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -39,14 +40,17 @@ export function LoginPage() {
 
   return (
     <div className="grid min-h-full lg:grid-cols-2">
-      <section className="flex flex-col justify-center px-6 py-12 sm:px-12">
+      <section className="relative flex flex-col justify-center px-6 py-12 sm:px-12">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
         <div className="mx-auto w-full max-w-sm">
           <Logo className="mb-10" />
           <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="mt-2 text-sm text-muted">Sign in to schedule and track your outreach.</p>
 
           {errorKey && (
-            <div role="alert" className="mt-6 flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div role="alert" className="mt-6 flex gap-2 rounded-lg border border-danger-line bg-danger-soft p-3 text-sm text-danger">
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               {ERRORS[errorKey] ?? 'Sign-in failed. Please try again.'}
             </div>
@@ -56,7 +60,7 @@ export function LoginPage() {
             href={GOOGLE_LOGIN_URL}
             onClick={() => setRedirecting(true)}
             aria-busy={redirecting}
-            className="mt-8 flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-line bg-surface text-sm font-semibold text-ink shadow-sm transition-colors hover:bg-canvas"
+            className="mt-8 flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-line bg-surface text-sm font-semibold text-ink shadow-sm transition-colors hover:bg-neutral-soft"
           >
             {redirecting ? <Spinner className="size-5" /> : <GoogleIcon />}
             Login with Google
@@ -67,9 +71,11 @@ export function LoginPage() {
         </div>
       </section>
 
-      <section className="hidden flex-col justify-center bg-brand-700 px-12 text-white lg:flex">
+      <section className="hidden flex-col justify-center border-l border-transparent bg-[#066b3e] px-12 text-white lg:flex dark:border-line dark:bg-transparent">
         <div className="max-w-md">
-          <h2 className="text-3xl font-bold leading-tight">Cold outreach that actually reaches the inbox.</h2>
+          <h2 className="text-3xl font-bold leading-tight">
+            Cold outreach that actually reaches the <span className="dark:text-accent">inbox</span>.
+          </h2>
           <ul className="mt-8 space-y-4">
             {HIGHLIGHTS.map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-start gap-3 text-white/90">

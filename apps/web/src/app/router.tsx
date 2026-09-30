@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { CampaignsPage } from '@/pages/CampaignsPage';
-import { ComposePage } from '@/pages/ComposePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ScheduledPage } from '@/pages/ScheduledPage';
@@ -11,7 +10,10 @@ import { SentPage } from '@/pages/SentPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { Spinner } from '@/components/ui/Spinner';
 
-// The chart library is only downloaded when Analytics is opened.
+// Heavy pages (charts; the composer with CSV parsing, forms and forecast) load on demand.
+const ComposePage = lazy(() =>
+  import('@/pages/ComposePage').then((m) => ({ default: m.ComposePage })),
+);
 const AnalyticsPage = lazy(() =>
   import('@/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })),
 );
@@ -32,7 +34,14 @@ export function AppRouter() {
             <Route path="/dashboard" element={<Navigate to="/dashboard/scheduled" replace />} />
             <Route path="/dashboard/scheduled" element={<ScheduledPage />} />
             <Route path="/dashboard/sent" element={<SentPage />} />
-            <Route path="/compose" element={<ComposePage />} />
+            <Route
+              path="/compose"
+              element={
+                <Suspense fallback={pageFallback}>
+                  <ComposePage />
+                </Suspense>
+              }
+            />
             <Route path="/campaigns" element={<CampaignsPage />} />
             <Route
               path="/analytics"

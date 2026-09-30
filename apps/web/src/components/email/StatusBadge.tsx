@@ -29,10 +29,10 @@ export function EmailStatusCell({
     <div className="flex flex-col items-start gap-1">
       <StatusBadge status={row.status} />
       {row.status === 'RATE_LIMITED' && (
-        <span className="text-xs whitespace-nowrap text-amber-700">Resumes {formatWhen(row.nextAttemptAt)}</span>
+        <span className="text-xs whitespace-nowrap text-warn">Resumes {formatWhen(row.nextAttemptAt)}</span>
       )}
       {row.status === 'FAILED' && row.lastError && (
-        <span className="max-w-48 truncate text-xs text-red-600" title={row.lastError}>
+        <span className="max-w-48 truncate text-xs text-danger" title={row.lastError}>
           {row.lastError}
         </span>
       )}

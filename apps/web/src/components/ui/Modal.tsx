@@ -33,7 +33,7 @@ export function Modal({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cn(
-        'm-auto w-full max-w-lg rounded-2xl bg-surface p-0 text-ink shadow-2xl backdrop:bg-slate-900/40',
+        'm-auto w-full max-w-lg rounded-2xl bg-surface-solid p-0 text-ink shadow-2xl',
         className,
       )}
     >
@@ -43,7 +43,7 @@ export function Modal({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="rounded-md p-1 text-muted hover:bg-canvas hover:text-ink"
+          className="rounded-md p-1 text-muted hover:bg-neutral-soft hover:text-ink"
         >
           <X className="size-5" />
         </button>

@@ -44,7 +44,7 @@ export function Dropzone({
       className={cn(
         'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors',
         over ? 'border-brand-500 bg-brand-50' : 'border-line bg-canvas/50 hover:border-brand-500/60',
-        invalid && 'border-red-400',
+        invalid && 'border-danger',
         disabled && 'pointer-events-none opacity-60',
       )}
     >

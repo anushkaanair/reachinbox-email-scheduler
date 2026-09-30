@@ -20,9 +20,9 @@ const hourTick = (h: string) => {
 
 /** Status series: validated palette (see styles/index.css). Stack order bottom → top. */
 const SERIES = [
-  { key: 'sent', label: 'Sent', color: '#0b9a5b' },
-  { key: 'rateLimited', label: 'Deferred by limit', color: '#e0a100' },
-  { key: 'failed', label: 'Failed', color: '#b42318' },
+  { key: 'sent', label: 'Sent', color: 'var(--c-st-sent)' },
+  { key: 'rateLimited', label: 'Deferred by limit', color: 'var(--c-st-deferred)' },
+  { key: 'failed', label: 'Failed', color: 'var(--c-st-failed)' },
 ] as const;
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -38,7 +38,7 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-line bg-surface-solid px-3 py-2 text-xs shadow-lg">
       <p className="mb-1 font-semibold text-ink">{format(new Date(label as string), 'MMM d, h:mm a')}</p>
       {SERIES.map((s) => {
         const v = payload.find((p) => p.dataKey === s.key)?.value ?? 0;
@@ -102,19 +102,19 @@ function HourlyChart({ data }: { data: Analytics['hourly'] }) {
         <div className="h-64" role="img" aria-label="Stacked bar chart of sent, deferred and failed emails per hour">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -12 }} barCategoryGap="20%">
-              <CartesianGrid vertical={false} stroke="#eef0f3" />
+              <CartesianGrid vertical={false} stroke="var(--c-line)" />
               <XAxis
                 dataKey="hour"
                 tickFormatter={hourTick}
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: 'var(--c-muted)' }}
                 tickLine={false}
-                axisLine={{ stroke: '#e5e7eb' }}
+                axisLine={{ stroke: 'var(--c-line)' }}
                 minTickGap={16}
               />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={40} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'var(--c-muted)' }} tickLine={false} axisLine={false} width={40} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
               {SERIES.map((s) => (
-                <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} stroke="#fff" strokeWidth={2} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} stroke="var(--c-surface-solid)" strokeWidth={2} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -139,7 +139,7 @@ function SenderMeters({ senders, windowSeconds }: { senders: Analytics['senders'
             <li key={s.id}>
               <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{s.email}</span>
-                <span className={cn('flex shrink-0 items-center gap-1 text-xs', state === 'full' ? 'text-red-700' : state === 'high' ? 'text-amber-700' : 'text-muted')}>
+                <span className={cn('flex shrink-0 items-center gap-1 text-xs', state === 'full' ? 'text-danger' : state === 'high' ? 'text-warn' : 'text-muted')}>
                   <Icon className="size-3.5" aria-hidden />
                   <span className="font-medium text-ink tabular-nums">{s.used}/{s.limit}</span>
                   {state === 'full' ? 'limit reached' : state === 'high' ? 'near limit' : ''}
@@ -148,7 +148,7 @@ function SenderMeters({ senders, windowSeconds }: { senders: Analytics['senders'
               <div className="h-2 w-full overflow-hidden rounded-full bg-canvas" role="progressbar" aria-valuemin={0} aria-valuemax={s.limit} aria-valuenow={s.used} aria-label={`${s.email} quota`}>
                 <div
                   className="h-full rounded-full transition-[width] duration-500"
-                  style={{ width: `${pct}%`, background: state === 'full' ? '#b42318' : state === 'high' ? '#e0a100' : '#0b9a5b' }}
+                  style={{ width: `${pct}%`, background: state === 'full' ? 'var(--c-st-failed)' : state === 'high' ? 'var(--c-st-deferred)' : 'var(--c-st-sent)' }}
                 />
               </div>
               <p className="mt-1 text-xs text-muted">{nf.format(s.sent24h)} sent in the selected period</p>
@@ -188,19 +188,19 @@ export function AnalyticsPage() {
           action={<Button variant="secondary" onClick={() => void refetch()}>Try again</Button>} />
       ) : isPending || !data ? (
         <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-20" />)}</div>
+          <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-20" />)}</div>
           <Skeleton className="h-80" />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-5">
             <Tile label="Sent" value={nf.format(data.totals.sent)} />
             <Tile label="Failed" value={nf.format(data.totals.failed)} />
             <Tile label="Deferred by limits" value={nf.format(data.totals.rateLimited)} hint="moved to a later window" />
             <Tile label="Pending now" value={nf.format(data.totals.pending)} />
             <Tile label="Delivery rate" value={rate} hint="sent ÷ (sent + failed)" />
           </div>
-          <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="grid gap-4 @4xl:grid-cols-[1fr_340px]">
             <HourlyChart data={data.hourly} />
             <SenderMeters senders={data.senders} windowSeconds={data.windowSeconds} />
           </div>

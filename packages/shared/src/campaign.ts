@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SendWindowSchema } from './sendWindow.js';
 
 /** Raw lead as parsed from CSV — the server validates addresses and reports invalid ones back. */
 export const LeadSchema = z.object({
@@ -23,6 +24,10 @@ export const CreateCampaignInputSchema = z.object({
   hourlyLimit: z.coerce.number().int().min(1).max(10_000),
   /** Optional subset of senders; default = all active senders, round-robin. */
   senderIds: z.array(z.string()).optional(),
+  /** Only send during these local business hours (emails outside roll to the next opening). */
+  sendWindow: SendWindowSchema.optional(),
+  /** Skip anyone this user already emailed (or scheduled) within the last N days; 0 = off. */
+  skipRecentDays: z.coerce.number().int().min(0).max(365).default(0),
 });
 export type CreateCampaignInput = z.infer<typeof CreateCampaignInputSchema>;
 
@@ -31,6 +36,11 @@ export const CreateCampaignResponseSchema = z.object({
   accepted: z.number(),
   invalid: z.array(z.string()),
   duplicates: z.number(),
+  /** Leads on the user's do-not-contact list. */
+  suppressed: z.number(),
+  /** Leads skipped by the "recently emailed" guard. */
+  recentlyEmailed: z.number(),
+  firstSendAt: z.string(),
   estimatedFinishAt: z.string(),
 });
 export type CreateCampaignResponse = z.infer<typeof CreateCampaignResponseSchema>;

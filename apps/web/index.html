@@ -10,6 +10,19 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply the saved theme before first paint so there is no flash of the wrong one.
+      (function () {
+        try {
+          var pref = localStorage.getItem('ri-theme');
+          var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var t = pref === 'light' || pref === 'dark' ? pref : dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = t;
+          document.documentElement.style.colorScheme = t;
+        } catch (e) {}
+      })();
+    </script>
     <title>ReachInbox · Scheduler</title>
   </head>
   <body>

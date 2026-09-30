@@ -1,6 +1,9 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import {
+  EmailStatusSchema,
+  EmailTabSchema,
   ListEmailsQuerySchema,
   SearchQuerySchema,
   type SearchResponse,
@@ -13,6 +16,7 @@ import {
 } from '@ri/shared';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
+import { csvRow } from '../../lib/csv.js';
 import { prisma } from '../../lib/prisma.js';
 import { authedUserId, requireAuth } from '../auth/session.js';
 import { cancelEmail, retryEmail, type ControlDeps } from '../campaigns/controls.js';
@@ -85,6 +89,59 @@ router.get('/', async (req, res, next) => {
     res.json(body);
   } catch (err) {
     next(err);
+  }
+});
+
+const ExportQuerySchema = z.object({
+  tab: EmailTabSchema.optional(),
+  status: EmailStatusSchema.optional(),
+  campaignId: z.string().max(64).optional(),
+});
+
+const EXPORT_HEADER = ['to', 'name', 'subject', 'status', 'sender', 'scheduled_at', 'next_attempt_at', 'sent_at', 'failed_at', 'attempts', 'error', 'preview_url', 'campaign_id'];
+
+// GET /api/emails/export?tab=sent|scheduled&status=&campaignId= — streamed CSV of the user's emails.
+router.get('/export', async (req, res, next) => {
+  try {
+    const userId = authedUserId(req);
+    const q = ExportQuerySchema.parse(req.query);
+    const where: Prisma.EmailWhereInput = {
+      userId,
+      ...(q.campaignId ? { campaignId: q.campaignId } : {}),
+      ...(q.status ? { status: q.status } : q.tab ? { status: { in: [...TAB_STATUSES[q.tab]] } } : {}),
+    };
+    const name = ['emails', q.campaignId?.slice(0, 8), q.status?.toLowerCase() ?? q.tab, new Date().toISOString().slice(0, 10)]
+      .filter(Boolean)
+      .join('-');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}.csv"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.write('\uFEFF'); // BOM so Excel reads UTF-8 names correctly
+    res.write(csvRow(EXPORT_HEADER));
+
+    let closed = false;
+    req.on('close', () => (closed = true));
+    let cursor: string | undefined;
+    for (;;) {
+      const rows = await prisma.email.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        take: 1000,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: { ...rowSelect, attempts: true },
+      });
+      if (rows.length === 0 || closed) break;
+      cursor = rows.at(-1)!.id;
+      for (const e of rows) {
+        res.write(csvRow([e.toEmail, e.toName, e.subject, e.status, e.sender.email, e.scheduledAt, e.nextAttemptAt, e.sentAt, e.failedAt, e.attempts, e.lastError, e.previewUrl, e.campaignId]));
+      }
+    }
+    res.end();
+  } catch (err) {
+    // Headers may already be sent mid-stream; in that case just end the response.
+    if (res.headersSent) res.end();
+    else next(err);
   }
 });
 

@@ -6,15 +6,15 @@ Re-run any of it yourself with the commands shown.
 
 ## Automated checks
 
-| Check                                                                 | Command                                                                 | Result                         |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------ |
-| Unit + integration tests (real PG/Redis/ES, SMTP & Slack HTTP mocked) | `npm test`                                                              | **77 passed** (72 API + 5 web) |
-| Types (strict)                                                        | `npm run typecheck`                                                     | 0 errors                       |
-| Lint                                                                  | `npm run lint`                                                          | clean                          |
-| No cron anywhere (hard constraint)                                    | `npm run check:no-cron`                                                 | passed                         |
-| Dependency audit (prod + dev)                                         | `npm audit`                                                             | **0 vulnerabilities**          |
-| Accessibility (axe-core, WCAG 2.1 A/AA)                               | all 7 pages incl. login + open drawer                                   | **0 violations**               |
-| Fresh clone → running                                                 | copy without `node_modules` → `npm ci` → `npm run setup` → test → build | passes end to end              |
+| Check                                                                 | Command                                                                 | Result                            |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------- |
+| Unit + integration tests (real PG/Redis/ES, SMTP & Slack HTTP mocked) | `npm test`                                                              | **231 passed** (217 API + 14 web) |
+| Types (strict)                                                        | `npm run typecheck`                                                     | 0 errors                          |
+| Lint                                                                  | `npm run lint`                                                          | clean                             |
+| No cron anywhere (hard constraint)                                    | `npm run check:no-cron`                                                 | passed                            |
+| Dependency audit (prod + dev)                                         | `npm audit`                                                             | **0 vulnerabilities**             |
+| Accessibility (axe-core, WCAG 2.1 A/AA)                               | all 7 pages × light and dark, plus the Ask Inbox palette and panel open | **0 violations**                  |
+| Fresh clone → running                                                 | copy without `node_modules` → `npm ci` → `npm run setup` → test → build | passes end to end                 |
 
 ## Restart & resilience drills
 

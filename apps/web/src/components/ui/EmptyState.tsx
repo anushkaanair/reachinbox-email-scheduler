@@ -22,7 +22,7 @@ export function EmptyState({
       <div
         className={cn(
           'mb-4 grid size-14 place-items-center rounded-2xl',
-          tone === 'danger' ? 'bg-red-50 text-red-600' : 'bg-brand-50 text-brand-600',
+          tone === 'danger' ? 'bg-danger-soft text-danger' : 'bg-brand-50 text-brand-600',
         )}
       >
         <Icon className="size-7" aria-hidden />

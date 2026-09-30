@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   isValidEmail,
   renderTemplate,
+  type SendWindow,
   type CreateCampaignInput,
   type CreateCampaignResponse,
 } from '@ri/shared';
@@ -10,6 +11,8 @@ import type { Redis } from 'ioredis';
 import { AppError } from '../../lib/errors.js';
 import { publishLive } from '../../lib/live.js';
 import { enqueueEmails, enqueueIndex, type QueueSet } from '../../queues/queues.js';
+import type { RateLimiter } from '../../throttle/rateLimiter.js';
+import { applyGuards, forecast, scheduleTimes, type Forecast } from './planning.js';
 
 export type SchedulingConfig = {
   maxPerWindowGlobal: number;
@@ -17,6 +20,9 @@ export type SchedulingConfig = {
   minDelayMs: number;
   windowMs: number;
 };
+
+/** Same as the validated API input, but callers (tests, scripts) may omit the defaulted fields. */
+export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays'> & { skipRecentDays?: number };
 
 type CleanLead = { email: string; name?: string; vars: Record<string, string> };
 
@@ -42,24 +48,39 @@ export function normalizeLeads(leads: CreateCampaignInput['leads']) {
   return { clean, invalid, duplicates };
 }
 
-/**
- * Rough, honest ETA: bounded by the campaign's own spacing and by how many windows the
- * effective per-window capacity needs. Shown in the composer and returned by the API.
- */
-export function estimateFinish(
-  n: number,
-  startMs: number,
-  delayMs: number,
-  campaignLimit: number,
-  senders: { hourlyLimit: number | null }[],
-  cfg: SchedulingConfig,
-): Date {
-  const senderCapacity = senders.reduce((s, x) => s + (x.hourlyLimit ?? cfg.maxPerWindowPerSender), 0);
-  const perWindow = Math.max(1, Math.min(campaignLimit, senderCapacity, cfg.maxPerWindowGlobal));
-  const spacing = Math.max(delayMs, cfg.minDelayMs / Math.max(1, senders.length));
-  const bySpacing = startMs + (n - 1) * spacing;
-  const byWindows = startMs + (Math.ceil(n / perWindow) - 1) * cfg.windowMs;
-  return new Date(Math.max(bySpacing, byWindows));
+/** Active senders (optionally a subset), ordered so round-robin assignment is stable. */
+export async function loadSenders(prisma: PrismaClient, senderIds?: string[]) {
+  return prisma.sender.findMany({
+    where: { isActive: true, ...(senderIds?.length ? { id: { in: senderIds } } : {}) },
+    orderBy: { email: 'asc' },
+  });
+}
+
+/** Forecast from the same numbers the limiter uses, including what senders already used this window. */
+export async function computeForecast(opts: {
+  times: number[];
+  senders: { id: string; hourlyLimit: number | null }[];
+  campaignLimit: number;
+  sendWindow?: SendWindow | null;
+  config: SchedulingConfig;
+  limiter?: RateLimiter;
+}): Promise<Forecast> {
+  const senders = await Promise.all(
+    opts.senders.map(async (s) => ({
+      limit: s.hourlyLimit ?? opts.config.maxPerWindowPerSender,
+      used: opts.limiter ? await opts.limiter.senderUsage(s.id) : 0,
+    })),
+  );
+  return forecast({
+    times: opts.times,
+    nowMs: Date.now(),
+    windowMs: opts.config.windowMs,
+    minDelayMs: opts.config.minDelayMs,
+    campaignLimit: opts.campaignLimit,
+    globalLimit: opts.config.maxPerWindowGlobal,
+    senders,
+    sendWindow: opts.sendWindow,
+  });
 }
 
 /**
@@ -69,19 +90,27 @@ export function estimateFinish(
  */
 export async function createCampaign(
   userId: string,
-  input: CreateCampaignInput,
-  deps: { prisma: PrismaClient; queues: QueueSet; config: SchedulingConfig; redis?: Redis },
+  input: CampaignInput,
+  deps: { prisma: PrismaClient; queues: QueueSet; config: SchedulingConfig; redis?: Redis; limiter?: RateLimiter },
 ): Promise<CreateCampaignResponse> {
   const { prisma, queues, config } = deps;
-  const { clean, invalid, duplicates } = normalizeLeads(input.leads);
-  if (clean.length === 0) {
+  const normalized = normalizeLeads(input.leads);
+  const { invalid, duplicates } = normalized;
+  if (normalized.clean.length === 0) {
     throw new AppError(400, 'VALIDATION', 'No valid email addresses found', { invalid, duplicates });
   }
 
-  const senders = await prisma.sender.findMany({
-    where: { isActive: true, ...(input.senderIds?.length ? { id: { in: input.senderIds } } : {}) },
-    orderBy: { email: 'asc' },
-  });
+  // Never email the do-not-contact list, or (optionally) anyone contacted recently.
+  const guarded = await applyGuards(prisma, userId, normalized.clean, input.skipRecentDays ?? 0);
+  const clean = guarded.sendable;
+  if (clean.length === 0) {
+    throw new AppError(400, 'VALIDATION', 'Every lead was skipped (do-not-contact list or recently emailed)', {
+      suppressed: guarded.suppressed.length,
+      recentlyEmailed: guarded.recentlyEmailed.length,
+    });
+  }
+
+  const senders = await loadSenders(prisma, input.senderIds);
   if (senders.length === 0) {
     throw new AppError(409, 'CONFLICT', 'No active senders. Run `npm run senders:create -w @ri/api` first.');
   }
@@ -92,8 +121,11 @@ export async function createCampaign(
   const delayMs = input.delayBetweenSeconds * 1000;
   const campaignId = randomUUID();
 
+  const sendWindow = input.sendWindow ?? null;
+  const times = scheduleTimes(clean.length, startMs, delayMs, sendWindow);
+
   const rows: Prisma.EmailCreateManyInput[] = clean.map((lead, i) => {
-    const at = new Date(startMs + i * delayMs);
+    const at = new Date(times[i]!);
     const vars = { email: lead.email, name: lead.name ?? '', ...lead.vars };
     return {
       id: randomUUID(),
@@ -118,8 +150,10 @@ export async function createCampaign(
         userId,
         subject: input.subject,
         body: input.body,
-        startAt: new Date(startMs),
+        startAt: new Date(times[0]!),
         delayBetweenMs: delayMs,
+        sendWindow: sendWindow ?? undefined,
+        skipRecentDays: input.skipRecentDays ?? 0,
         hourlyLimit: input.hourlyLimit,
         totalRecipients: rows.length,
       },
@@ -143,11 +177,16 @@ export async function createCampaign(
   );
   if (deps.redis) await publishLive(deps.redis, userId, { type: 'campaign.updated', campaignId, status: 'ACTIVE' });
 
+  const fc = await computeForecast({ times, senders, campaignLimit: input.hourlyLimit, sendWindow, config, limiter: deps.limiter });
   return {
     campaignId,
     accepted: rows.length,
     invalid,
     duplicates,
-    estimatedFinishAt: estimateFinish(rows.length, startMs, delayMs, input.hourlyLimit, senders, config).toISOString(),
+    suppressed: guarded.suppressed.length,
+    recentlyEmailed: guarded.recentlyEmailed.length,
+    firstSendAt: new Date(times[0]!).toISOString(),
+    // If the run is longer than we simulate, fall back to the last scheduled time.
+    estimatedFinishAt: fc.finishAt ?? new Date(times[times.length - 1]!).toISOString(),
   };
 }

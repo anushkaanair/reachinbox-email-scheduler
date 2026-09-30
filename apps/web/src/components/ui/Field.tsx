@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn';
 const control =
   'w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/70 ' +
   'transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 ' +
-  'disabled:bg-canvas aria-[invalid=true]:border-red-500 aria-[invalid=true]:ring-red-100';
+  'disabled:bg-canvas aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger-line';
 
 type FieldShellProps = { id: string; label?: string; hint?: ReactNode; error?: string; children: ReactNode };
 
@@ -26,7 +26,7 @@ function FieldShell({ id, label, hint, error, children }: FieldShellProps) {
       )}
       {children}
       {error ? (
-        <p id={`${id}-err`} className="text-xs text-red-600">
+        <p id={`${id}-err`} className="text-xs text-danger">
           {error}
         </p>
       ) : hint ? (

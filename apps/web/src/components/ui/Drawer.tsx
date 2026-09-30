@@ -30,14 +30,13 @@ export function Drawer({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cn(
-        'fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full max-w-xl bg-surface p-0 text-ink shadow-2xl',
-        'backdrop:bg-slate-900/30',
+        'fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full max-w-xl bg-surface-solid p-0 text-ink shadow-2xl',
       )}
     >
       <div className="flex h-full flex-col">
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1">{title}</div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted hover:bg-canvas hover:text-ink">
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted hover:bg-neutral-soft hover:text-ink">
             <X className="size-5" />
           </button>
         </header>

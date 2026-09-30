@@ -2,7 +2,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { env } from '../src/config/env.js';
-import { redactUrl } from '../src/lib/httpSecurity.js';
+import { redactUrl, requestLogSerializers } from '../src/lib/httpSecurity.js';
 import { prisma } from '../src/lib/prisma.js';
 import { createRedis, redis } from '../src/lib/redis.js';
 import { SESSION_COOKIE, setSession } from '../src/modules/auth/session.js';
@@ -43,6 +43,13 @@ describe('security hardening', () => {
       '/api/auth/google/callback?state=[redacted]&code=[redacted]&scope=email',
     );
     expect(redactUrl('/api/emails?status=sent')).toBe('/api/emails?status=sent');
+  });
+
+  it('S1b: request logs never include headers (Cookie / Set-Cookie carry the session token)', () => {
+    const res = { statusCode: 200, getHeaders: () => ({ 'set-cookie': 'ri_session=eyJsecret' }), headers: { 'set-cookie': 'x' } };
+    expect(requestLogSerializers.res(res)).toEqual({ statusCode: 200 });
+    const req = { id: 1, method: 'GET', url: '/x?code=abc', headers: { cookie: 'ri_session=eyJsecret' } };
+    expect(JSON.stringify(requestLogSerializers.req(req))).not.toMatch(/eyJsecret|abc/);
   });
 
   it('S2: an unsigned ("alg: none") session token is rejected', async () => {

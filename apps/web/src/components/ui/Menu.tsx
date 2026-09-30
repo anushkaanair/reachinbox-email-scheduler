@@ -34,7 +34,7 @@ export function Menu({
           role="menu"
           onClick={() => setOpen(false)}
           className={cn(
-            'absolute z-30 mt-2 min-w-60 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg',
+            'absolute z-30 mt-2 min-w-60 overflow-hidden rounded-xl border border-line bg-surface-solid py-1 shadow-lg',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
@@ -62,8 +62,8 @@ export function MenuItem({
       role="menuitem"
       onClick={onSelect}
       className={cn(
-        'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-canvas',
-        danger ? 'text-red-600' : 'text-ink',
+        'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-neutral-soft',
+        danger ? 'text-danger' : 'text-ink',
       )}
     >
       {icon}

@@ -30,14 +30,14 @@ No cron anywhere — every send time is a BullMQ delayed job.
 
 ## Highlights
 
-|                              | Measured on real Ethereal SMTP (see [`docs/VERIFICATION.md`](docs/VERIFICATION.md))                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Never sends twice**        | 0 duplicate Message-IDs across a worker `kill -9`, an API `kill -9`, a Redis restart and two competing workers |
-| **Survives restarts**        | Delayed jobs persist in Redis (AOF); a one-shot boot reconciler repairs any drift from Postgres                |
-| **Strict throttling**        | Min gap between two sends of one sender: **2,034 ms** measured for a 2,000 ms setting                          |
-| **Hourly limits under load** | 1,000 emails due at once → **0 dropped**, exactly 4/sender/window in demo mode, the rest deferred in order     |
-| **Slack alert**              | Real OAuth; one message per sender per window, the moment the limit is hit                                     |
-| **Quality gates**            | 77 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations · CI                |
+|                              | Measured on real Ethereal SMTP, except Slack (see [`docs/VERIFICATION.md`](docs/VERIFICATION.md))                                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Never sends twice**        | 0 duplicate Message-IDs across a worker `kill -9`, an API `kill -9`, a Redis restart and two competing workers                                                                                                                       |
+| **Survives restarts**        | Delayed jobs persist in Redis (AOF); a one-shot boot reconciler repairs any drift from Postgres                                                                                                                                      |
+| **Strict throttling**        | Min gap between two sends of one sender: **2,034 ms** measured for a 2,000 ms setting                                                                                                                                                |
+| **Hourly limits under load** | 1,000 emails due at once → **0 dropped**, exactly 4/sender/window in demo mode, the rest deferred in order                                                                                                                           |
+| **Slack alert**              | OAuth flow, encrypted token storage and one alert per sender per window are built and tested against a mocked Slack API (11 tests); a live run against real Slack needs your own Slack app ([setup below](#slack-rate-limit-alerts)) |
+| **Quality gates**            | 231 tests · strict TypeScript · ESLint · `npm audit` 0 vulns · axe WCAG 2.1 AA 0 violations (both themes) · CI                                                                                                                       |
 
 ---
 
@@ -312,30 +312,39 @@ Cancelling the remaining 976 took 0.18 s.
 
 ### Beyond the brief
 
-| Feature                           | What you see                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Live dashboard (SSE)**          | Rows change status and counters tick with no refresh; "Live" indicator                    |
-| **In-app rate-limit alerts**      | Toast the moment a sender hits its limit, with the resume time                            |
-| **"Resumes at" badges**           | Deferred rows show when they'll send; "Paused" when their campaign is                     |
-| **Email detail drawer**           | Full email, Message-ID, Ethereal link, and a status timeline                              |
-| **Campaigns page**                | Live progress bars; Pause / Resume / Cancel (pausing keeps order)                         |
-| **Retry failed / cancel one**     | One click from the drawer                                                                 |
-| **Analytics**                     | Sent / failed / deferred tiles, hourly chart (+ table view), live per-sender quota meters |
-| **Merge tags**                    | `{{name}}`, `{{company}}`, any CSV column — click to insert                               |
-| **Upload report + ETA**           | "10 detected · 1 invalid · 1 duplicate", estimated finish time                            |
-| **Search with highlights**        | `/` to focus; typo-tolerant fallback                                                      |
-| **System health**                 | DB / Redis / Search / live-stream status + Bull Board link                                |
-| **One-command setup, demo tools** | `npm run setup`, `dev:demo`, `demo load / restart / verify / reset`                       |
+| Feature                           | What you see                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Live dashboard (SSE)**          | Rows change status and counters tick with no refresh; "Live" indicator                                                              |
+| **In-app rate-limit alerts**      | Toast the moment a sender hits its limit, with the resume time                                                                      |
+| **"Resumes at" badges**           | Deferred rows show when they'll send; "Paused" when their campaign is                                                               |
+| **Email detail drawer**           | Full email, Message-ID, Ethereal link, and a status timeline                                                                        |
+| **Campaigns page**                | Live progress bars; Pause / Resume / Cancel (pausing keeps order)                                                                   |
+| **Retry failed / cancel one**     | One click from the drawer                                                                                                           |
+| **Analytics**                     | Sent / failed / deferred tiles, hourly chart (+ table view), live per-sender quota meters                                           |
+| **Merge tags**                    | `{{name}}`, `{{company}}`, any CSV column — click to insert                                                                         |
+| **Upload report + ETA**           | "10 detected · 1 invalid · 1 duplicate", estimated finish time                                                                      |
+| **Search with highlights**        | `/` to focus; typo-tolerant fallback                                                                                                |
+| **System health**                 | DB / Redis / Search / live-stream status + Bull Board link                                                                          |
+| **Compose preview + test send**   | The email exactly as a recipient sees it (merge tags highlighted), warnings for blank tags, and a real test email to a sender inbox |
+| **Send forecast**                 | Window-by-window chart of when emails will actually go out under your limits, before you schedule                                   |
+| **Do-not-contact list + guard**   | Blocked addresses (and optionally anyone emailed in the last N days) are skipped, and the report says how many                      |
+| **Business-hours window**         | "Only send 9–5 in this time zone, weekdays" — night/weekend emails roll to the next opening, including deferred ones                |
+| **CSV export + bulk retry**       | Download any list as CSV (formula-injection safe); "Retry N failed" on a campaign                                                   |
+| **Ask Inbox (assistant)**         | Cmd+K palette and a docked side panel: ask about your data, or command changes that wait for a Confirm                              |
+| **Light and dark themes**         | Light, dark ("space") or follow the system; chosen in the header or Settings → Appearance                                           |
+| **One-command setup, demo tools** | `npm run setup`, `dev:demo`, `demo load / restart / verify / reset`                                                                 |
 
 ---
 
 ## Screenshots
 
-|                                                                                              |                                                                                                 |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| ![Compose](docs/screenshots/compose.png) **Compose** — upload report, merge tags, ETA        | ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel |
-| ![Detail](docs/screenshots/drawer.png) **Email detail** — timeline incl. rate-limit deferral | ![Analytics](docs/screenshots/analytics.png) **Analytics** — live limit alert and quota meters  |
-| ![Search](docs/screenshots/search.png) **Search** — Elasticsearch with highlights            | ![Login](docs/screenshots/login.png) **Login** — Google OAuth                                   |
+|                                                                                                      |                                                                                                              |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![Compose](docs/screenshots/compose.png) **Compose** — upload report, merge tags, ETA                | ![Campaigns](docs/screenshots/campaigns.png) **Campaigns** — live progress, pause/resume/cancel              |
+| ![Detail](docs/screenshots/drawer.png) **Email detail** — timeline incl. rate-limit deferral         | ![Analytics](docs/screenshots/analytics.png) **Analytics** — live limit alert and quota meters               |
+| ![Search](docs/screenshots/search.png) **Search** — Elasticsearch with highlights                    | ![Login](docs/screenshots/login.png) **Login** — Google OAuth                                                |
+| ![Dark](docs/screenshots/campaigns-dark.png) **Dark theme** — deep-space backdrop, frosted cards     | ![Appearance](docs/screenshots/settings-appearance-dark.png) **Settings → Appearance** — light, dark, system |
+| ![Palette](docs/screenshots/assistant-palette-dark.png) **Ask Inbox: Cmd+K palette** — quick answers | ![Panel](docs/screenshots/assistant-panel-light.png) **Ask Inbox: side panel** — confirm before any change   |
 
 ---
 
@@ -343,28 +352,32 @@ Cancelling the remaining 976 took 0.18 s.
 
 All routes except auth/health require the session cookie. Errors are always `{ error: { code, message, details? } }`.
 
-| Method              | Path                                                            | Purpose                                                                                                  |
-| ------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| GET                 | `/api/auth/google` → `/callback`                                | Google OAuth (state-cookie CSRF protection)                                                              |
-| GET / POST          | `/api/auth/me` · `/api/auth/logout`                             | Current user · logout                                                                                    |
-| POST                | `/api/campaigns`                                                | Schedule (supports `Idempotency-Key`) → `{campaignId, accepted, invalid, duplicates, estimatedFinishAt}` |
-| GET                 | `/api/campaigns`                                                | Campaigns with per-status counts                                                                         |
-| POST                | `/api/campaigns/:id/pause · resume · cancel`                    | Campaign controls                                                                                        |
-| GET                 | `/api/emails?status=scheduled\|sent&cursor=&limit=`             | Cursor-paginated lists                                                                                   |
-| GET                 | `/api/emails/search?q=&status=`                                 | Elasticsearch search with highlights                                                                     |
-| GET                 | `/api/emails/:id`                                               | Detail + timeline                                                                                        |
-| POST                | `/api/emails/:id/retry · cancel`                                | Per-email actions                                                                                        |
-| GET                 | `/api/emails/counts` · `/api/senders` · `/api/analytics?hours=` | Badges · senders with live quota · analytics                                                             |
-| GET / POST / DELETE | `/api/slack` · `/connect` · `/oauth/callback` · `/test`         | Slack integration                                                                                        |
-| GET                 | `/api/events`                                                   | Server-Sent Events (per-user)                                                                            |
-| GET                 | `/healthz`, `/admin/queues`                                     | Health · Bull Board                                                                                      |
+| Method              | Path                                                                    | Purpose                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GET                 | `/api/auth/google` → `/callback`                                        | Google OAuth (state-cookie CSRF protection)                                                              |
+| GET / POST          | `/api/auth/me` · `/api/auth/logout`                                     | Current user · logout                                                                                    |
+| POST                | `/api/campaigns`                                                        | Schedule (supports `Idempotency-Key`) → `{campaignId, accepted, invalid, duplicates, estimatedFinishAt}` |
+| GET                 | `/api/campaigns`                                                        | Campaigns with per-status counts                                                                         |
+| POST                | `/api/campaigns/:id/pause · resume · cancel`                            | Campaign controls                                                                                        |
+| GET                 | `/api/emails?status=scheduled\|sent&cursor=&limit=`                     | Cursor-paginated lists                                                                                   |
+| GET                 | `/api/emails/search?q=&status=`                                         | Elasticsearch search with highlights                                                                     |
+| GET                 | `/api/emails/:id`                                                       | Detail + timeline                                                                                        |
+| POST                | `/api/emails/:id/retry · cancel`                                        | Per-email actions                                                                                        |
+| GET                 | `/api/emails/counts` · `/api/senders` · `/api/analytics?hours=`         | Badges · senders with live quota · analytics                                                             |
+| GET / POST / DELETE | `/api/slack` · `/connect` · `/oauth/callback` · `/test`                 | Slack integration                                                                                        |
+| POST                | `/api/campaigns/preflight` · `/test-send` · `/:id/retry-failed`         | Lead report + send forecast · one real test email · bulk retry                                           |
+| GET / POST / DELETE | `/api/suppressions`                                                     | Do-not-contact list                                                                                      |
+| GET                 | `/api/emails/export?tab=&status=&campaignId=`                           | Streamed CSV                                                                                             |
+| POST / GET          | `/api/assistant/message` · `/actions/:id/confirm\|cancel` · `/starters` | Ask Inbox: answer, then confirm or decline a proposed change                                             |
+| GET                 | `/api/events`                                                           | Server-Sent Events (per-user)                                                                            |
+| GET                 | `/healthz`, `/admin/queues`                                             | Health · Bull Board                                                                                      |
 
 ---
 
 ## Testing & verification
 
 ```bash
-npm test              # 77 tests: API integration against real Postgres/Redis/Elasticsearch (+ web unit tests)
+npm test              # 231 tests: 217 API (real Postgres/Redis/Elasticsearch) + 14 web unit tests
 npm run typecheck && npm run lint && npm run check:no-cron && npm audit
 ```
 
@@ -385,6 +398,17 @@ Postgres/Redis/Elasticsearch services, the build, and `npm audit`.
 ---
 
 ## Assumptions, shortcuts & trade-offs
+
+- **Ask Inbox is rule-based ("offline mode"), on purpose.** It understands a defined set of English phrasings
+  (≈ 90 tested), not free-form language, but it needs no API key, is deterministic, and can never invent a
+  number: every answer is computed from your own data. Every change is _proposed_, and only carried out
+  when you press Confirm (one-time, per user, audited in `AssistantAction`). A language-model mode could sit
+  behind the same tools and confirm flow; it is not built.
+- **Business hours** are whole hours in one IANA time zone. Deferred emails that wake outside the window wait for
+  the next opening, so their exact order within that opening is best-effort rather than strict.
+- **The "recently emailed" guard is off by default**, so re-uploading a test file behaves as expected; tick it in
+  Compose to turn it on.
+- **The forecast is an estimate** ("≈ finishes …"), built from the same limits the limiter uses, not a promise.
 
 - **At-most-once on the crash window** (see [Idempotency](#idempotency--the-same-email-is-never-sent-twice)). With a
   real ESP this could be upgraded to exactly-once by looking the deterministic Message-ID up via the provider's API.

@@ -10,15 +10,17 @@ datasource db {
 }
 
 model User {
-  id        String           @id @default(cuid())
-  googleId  String           @unique
-  email     String           @unique
-  name      String
-  avatarUrl String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  campaigns Campaign[]
-  slack     SlackConnection?
+  id               String            @id @default(cuid())
+  googleId         String            @unique
+  email            String            @unique
+  name             String
+  avatarUrl        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  campaigns        Campaign[]
+  slack            SlackConnection?
+  suppressed       SuppressedEmail[]
+  assistantActions AssistantAction[]
 }
 
 /// One Slack workspace/channel per user (tenant = user).
@@ -51,6 +53,33 @@ model Sender {
   emails      Email[]
 }
 
+/// Per-user do-not-contact list. Leads on it are skipped when a campaign is created.
+model SuppressedEmail {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, email])
+  @@index([userId, createdAt])
+}
+
+/// Audit trail of every change the assistant made (or was asked to make and the user declined).
+model AssistantAction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tool      String
+  args      Json
+  /// EXECUTED | CANCELLED | FAILED | EXPIRED
+  status    String
+  summary   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 model Campaign {
   id              String         @id @default(cuid())
   userId          String
@@ -63,6 +92,10 @@ model Campaign {
   senderStrategy  SenderStrategy @default(ROUND_ROBIN)
   status          CampaignStatus @default(ACTIVE)
   totalRecipients Int
+  /// Business-hours window ({startHour,endHour,timezone,weekdaysOnly}) or null = send any time.
+  sendWindow      Json?
+  /// "Skip people emailed in the last N days" that applied when this campaign was created (0 = off).
+  skipRecentDays  Int            @default(0)
   createdAt       DateTime       @default(now())
   emails          Email[]
 
@@ -70,12 +103,12 @@ model Campaign {
 }
 
 model Email {
-  id               String      @id @default(cuid()) /// == BullMQ jobId
+  id               String       @id @default(cuid()) /// == BullMQ jobId
   campaignId       String
-  campaign         Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   userId           String
   senderId         String
-  sender           Sender      @relation(fields: [senderId], references: [id])
+  sender           Sender       @relation(fields: [senderId], references: [id])
   toEmail          String
   toName           String?
   vars             Json?
@@ -84,10 +117,10 @@ model Email {
   sequence         Int
   scheduledAt      DateTime
   nextAttemptAt    DateTime
-  status           EmailStatus @default(SCHEDULED)
-  attempts         Int         @default(0)
-  rateLimitedCount Int         @default(0)
-  messageId        String?     @unique
+  status           EmailStatus  @default(SCHEDULED)
+  attempts         Int          @default(0)
+  rateLimitedCount Int          @default(0)
+  messageId        String?      @unique
   previewUrl       String?
   sentAt           DateTime?
   failedAt         DateTime?
@@ -95,8 +128,8 @@ model Email {
   lockedAt         DateTime?
   /// When the worker handed this email to SMTP (throttle spacing is measured here, not at sentAt).
   dispatchedAt     DateTime?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
   events           EmailEvent[]
 
   @@unique([campaignId, toEmail])

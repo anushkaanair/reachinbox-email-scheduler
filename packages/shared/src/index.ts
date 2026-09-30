@@ -4,3 +4,5 @@ export * from './email.js';
 export * from './user.js';
 export * from './integrations.js';
 export * from './insights.js';
+export * from './sendWindow.js';
+export * from './assistant.js';

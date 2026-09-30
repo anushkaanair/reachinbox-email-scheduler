@@ -195,7 +195,7 @@ export function EmailTable({
                     onKeyDown={(e) => e.key === 'Enter' && onRowClick?.(row)}
                     tabIndex={onRowClick ? 0 : undefined}
                     aria-label={onRowClick ? `Open email to ${row.toEmail}` : undefined}
-                    className={`transition-colors hover:bg-canvas/60 ${onRowClick ? 'cursor-pointer focus-visible:bg-brand-50' : ''}`}
+                    className={`transition-colors hover:bg-neutral-soft/60 ${onRowClick ? 'cursor-pointer focus-visible:bg-brand-50' : ''}`}
                   >
                     {columns.map((c) => (
                       <td key={c.key} className={`px-4 py-3 align-middle ${c.className ?? ''}`}>

@@ -4,10 +4,10 @@ const nf = new Intl.NumberFormat();
 
 /** Segment order and colours shared by the campaign bar and its legend. */
 export const SEGMENTS = [
-  { key: 'sent', label: 'Sent', color: 'var(--color-st-sent)' },
-  { key: 'rateLimited', label: 'Deferred by limit', color: 'var(--color-st-deferred)' },
-  { key: 'failed', label: 'Failed', color: 'var(--color-st-failed)' },
-  { key: 'pending', label: 'Pending', color: 'var(--color-st-pending)' },
+  { key: 'sent', label: 'Sent', color: 'var(--c-st-sent)' },
+  { key: 'rateLimited', label: 'Deferred by limit', color: 'var(--c-st-deferred)' },
+  { key: 'failed', label: 'Failed', color: 'var(--c-st-failed)' },
+  { key: 'pending', label: 'Pending', color: 'var(--c-st-pending)' },
 ] as const;
 
 export function segmentValues(c: CampaignSummary['counts']) {

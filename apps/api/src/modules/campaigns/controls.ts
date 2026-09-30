@@ -101,6 +101,27 @@ export async function retryEmail(userId: string, emailId: string, deps: ControlD
   await publishLive(deps.redis, userId, { type: 'email.updated', emailId, campaignId: e.campaignId, status: 'SCHEDULED' });
 }
 
+/** Bulk "Retry failed": every FAILED email of a campaign goes back to SCHEDULED and is sent as soon
+ *  as the limiter (and any business-hours window) allows — same effect as retrying each one. */
+export async function retryFailed(userId: string, campaignId: string, deps: ControlDeps): Promise<number> {
+  const c = await ownCampaign(deps.prisma, userId, campaignId);
+  if (c.status === 'CANCELLED') throw conflict('Campaign was cancelled');
+  const rows = await deps.prisma.email.findMany({ where: { campaignId, status: 'FAILED' }, select: { id: true }, orderBy: { sequence: 'asc' } });
+  if (rows.length === 0) return 0;
+  const ids = rows.map((r) => r.id);
+  const now = new Date();
+  const updated = await deps.prisma.email.updateMany({
+    where: { id: { in: ids }, status: 'FAILED' },
+    data: { status: 'SCHEDULED', nextAttemptAt: now, failedAt: null, lastError: null, lockedAt: null },
+  });
+  await removeJobs(deps.queues, ids); // drop the old failed jobs so the same ids can be queued again
+  // A paused campaign keeps them SCHEDULED; Resume enqueues every pending email.
+  if (c.status === 'ACTIVE') await enqueueEmails(deps.queues.email, ids.map((id) => ({ id, nextAttemptAt: now })));
+  await recordAndNotify(deps, userId, ids, 'RETRIED', true);
+  await publishLive(deps.redis, userId, { type: 'campaign.updated', campaignId, status: c.status });
+  return updated.count;
+}
+
 export async function cancelEmail(userId: string, emailId: string, deps: ControlDeps) {
   const e = await deps.prisma.email.findFirst({ where: { id: emailId, userId } });
   if (!e) throw AppError.notFound('Email not found');

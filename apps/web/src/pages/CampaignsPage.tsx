@@ -1,15 +1,18 @@
-import { AlertTriangle, Ban, Layers, Pause, Play } from 'lucide-react';
+import { AlertTriangle, Ban, Download, Layers, Pause, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { CampaignStatus, CampaignSummary, StatusTone } from '@ri/shared';
 import type { CampaignAction } from '@/api/insights';
+import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { ProgressBar } from '@/components/campaign/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { exportUrl } from '@/api/campaigns';
+import { Button, buttonClass } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useRetryFailed } from '@/hooks/useCompose';
 import { useCampaignAction, useCampaigns } from '@/hooks/useInsights';
 import { formatWhen, relative } from '@/lib/format';
 
@@ -22,8 +25,21 @@ const STATUS_UI: Record<CampaignStatus, { label: string; tone: StatusTone }> = {
 
 const nf = new Intl.NumberFormat();
 
-function CampaignCard({ c, onAction, busy }: { c: CampaignSummary; onAction: (a: CampaignAction) => void; busy: boolean }) {
+function CampaignCard({
+  c,
+  onAction,
+  busy,
+  onRetryFailed,
+  retrying,
+}: {
+  c: CampaignSummary;
+  onAction: (a: CampaignAction) => void;
+  busy: boolean;
+  onRetryFailed: () => void;
+  retrying: boolean;
+}) {
   const s = STATUS_UI[c.status];
+  const { askAbout } = useAssistant();
   const done = c.counts.sent + c.counts.failed;
   return (
     <article className="rounded-xl border border-line bg-surface p-5">
@@ -38,7 +54,28 @@ function CampaignCard({ c, onAction, busy }: { c: CampaignSummary; onAction: (a:
             {nf.format(c.hourlyLimit)}/hour
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {c.counts.failed > 0 && c.status !== 'CANCELLED' && (
+            <Button size="sm" variant="secondary" loading={retrying} onClick={onRetryFailed}>
+              <RotateCcw className="size-4" /> Retry {nf.format(c.counts.failed)} failed
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={() => askAbout(`How is #${c.id.slice(0, 8)} doing?`, { campaignId: c.id })}
+            className={buttonClass('ghost', 'sm', 'hover:text-accent')}
+            aria-label={`Ask Inbox about “${c.subject}”`}
+          >
+            <Sparkles className="size-4 text-accent" aria-hidden /> Ask
+          </button>
+          <a
+            href={exportUrl({ campaignId: c.id })}
+            download
+            className={buttonClass('ghost', 'sm')}
+            aria-label={`Export campaign “${c.subject}” as CSV`}
+          >
+            <Download className="size-4" /> Export
+          </a>
           {c.status === 'ACTIVE' && (
             <Button size="sm" variant="secondary" loading={busy} onClick={() => onAction('pause')}>
               <Pause className="size-4" /> Pause
@@ -77,6 +114,7 @@ function CampaignCard({ c, onAction, busy }: { c: CampaignSummary; onAction: (a:
 export function CampaignsPage() {
   const { data, isPending, error, refetch } = useCampaigns();
   const act = useCampaignAction();
+  const retry = useRetryFailed();
   const [confirm, setConfirm] = useState<CampaignSummary | null>(null);
 
   const run = (c: CampaignSummary, action: CampaignAction) =>
@@ -114,6 +152,10 @@ export function CampaignsPage() {
               key={c.id}
               c={c}
               busy={act.isPending && act.variables?.id === c.id}
+              retrying={retry.isPending && retry.variables === c.id}
+              onRetryFailed={() =>
+                retry.mutate(c.id, { onSuccess: (r) => toast.success(r.retried ? `Re-queued ${nf.format(r.retried)} failed email${r.retried === 1 ? '' : 's'}` : 'Nothing to retry') })
+              }
               onAction={(a) => (a === 'cancel' ? setConfirm(c) : run(c, a))}
             />
           ))}

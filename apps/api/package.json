@@ -18,7 +18,8 @@
     "senders:create": "tsx scripts/create-ethereal-senders.ts",
     "dev:session": "tsx scripts/dev-session.ts",
     "reindex": "tsx scripts/reindex.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "assistant": "tsx scripts/assistant.ts"
   },
   "dependencies": {
     "@bull-board/api": "^6.21.3",

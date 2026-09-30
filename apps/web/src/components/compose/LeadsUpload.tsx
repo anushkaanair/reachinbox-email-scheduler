@@ -56,7 +56,7 @@ export function LeadsUpload({
           title="Upload lead list"
           hint="CSV with an “email” column (other columns become {{merge_tags}}) or a plain .txt list · max 5 MB"
         />
-        {message && <p className="text-xs text-red-600">{message}</p>}
+        {message && <p className="text-xs text-danger">{message}</p>}
       </div>
     );
   }
@@ -114,7 +114,7 @@ export function LeadsUpload({
           </details>
         )}
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );
 }

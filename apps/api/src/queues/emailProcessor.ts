@@ -3,6 +3,7 @@ import type { EmailEventType, Prisma, PrismaClient } from '@prisma/client';
 import type { Logger } from 'pino';
 import type { SendFn } from '../mail/transport.js';
 import type { RateLimiter, Ticket } from '../throttle/rateLimiter.js';
+import { isInSendWindow, nextSendWindowStart, SendWindowSchema } from '@ri/shared';
 import { windowEnd, windowStart } from '../throttle/windows.js';
 import type { EmailJobData, RateLimitNotice } from './queues.js';
 
@@ -65,7 +66,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
     const { emailId } = job.data;
     const email = await prisma.email.findUnique({
       where: { id: emailId },
-      include: { sender: true, campaign: { select: { status: true, hourlyLimit: true, userId: true } } },
+      include: { sender: true, campaign: { select: { status: true, hourlyLimit: true, userId: true, sendWindow: true } } },
     });
     const log = logger.child({ emailId, jobId: job.id });
 
@@ -92,6 +93,17 @@ export function createEmailProcessor(deps: ProcessorDeps) {
     }
 
     const now = Date.now();
+
+    // Business hours: a deferred or retried email must not go out at 3 AM. Wait for the next opening
+    // *before* touching the throttle, so no quota or slot is held meanwhile.
+    const hours = SendWindowSchema.safeParse(email.campaign.sendWindow);
+    if (hours.success && !isInSendWindow(now, hours.data)) {
+      const opens = nextSendWindowStart(now, hours.data);
+      await prisma.email.updateMany({ where: { id: emailId, status: { in: [...CLAIMABLE] } }, data: { nextAttemptAt: new Date(opens) } });
+      log.info({ opens: new Date(opens).toISOString() }, 'outside business hours, waiting');
+      return delay(job, token, opens);
+    }
+
     const limits = {
       global: config.maxPerWindowGlobal,
       sender: email.sender.hourlyLimit ?? config.maxPerWindowPerSender,

@@ -1,6 +1,8 @@
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Toaster, toast } from 'sonner';
+import { SpaceBackground } from '@/components/theme/SpaceBackground';
+import { ThemeProvider, useTheme } from '@/components/theme/ThemeProvider';
 import { ApiError } from '@/api/client';
 import { ME_KEY } from '@/hooks/useAuth';
 
@@ -26,11 +28,19 @@ export const queryClient = new QueryClient({
   },
 });
 
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster position="top-right" theme={theme} richColors closeButton />;
+}
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster position="top-right" richColors closeButton />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <SpaceBackground />
+        {children}
+        <ThemedToaster />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

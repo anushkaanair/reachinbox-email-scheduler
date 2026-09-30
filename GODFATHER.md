@@ -829,6 +829,13 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done · 🟥 blocked
 | 2026-09-29 | Native page scroll + sticky sidebar/header (no `<main overflow-auto>`) | axe `scrollable-region-focusable`; also nicer on mobile | A7 |
 | 2026-09-29 | Root `postinstall` also runs `prisma generate` | Fresh clone failed: Prisma's own postinstall looks for a schema at repo root, ours is in apps/api | A1 |
 | 2026-09-29 | `npm run setup` (idempotent) | Reviewers get from clone to running in one command | A1 |
+| 2026-09-30 | Offline (rule-based) assistant "Ask Inbox" first; LLM mode deferred | No API key needed for reviewers; deterministic, cannot invent numbers; same tools/confirm flow can back an LLM later | A4/A7 |
+| 2026-09-30 | Every assistant change is proposed → Confirm → executed once (Redis GETDEL) → audited (`AssistantAction`) | Human-in-the-loop; single-use tokens namespaced per user; stale state re-checked at confirm | A4 |
+| 2026-09-30 | Assistant UI = Cmd+K palette + docked side panel sharing one history | Quick asks and long conversations; the panel pushes content at ≥1280px, overlays below, full-screen on phones | A7 |
+| 2026-09-30 | Theme tokens: raw `--c-*` per theme → Tailwind names via `@theme inline`; `data-theme` on `<html>` set pre-paint | One switch re-themes everything incl. charts (CSS vars); no flash; `System` follows the OS | A7 |
+| 2026-09-30 | Dark theme = deep-indigo "space" backdrop (aurora + twinkling stars, static under reduced-motion), frosted-glass surfaces, violet accent for the assistant | Matches the product's feel; popovers/dialogs stay opaque for legibility | A7 |
+| 2026-09-30 | Dark chart palette #1db06a / #c28610 / #e0506f | Only combination that passed the dataviz validator's lightness band, colour-blind and distinguishability checks in dark | A7 |
+| 2026-09-30 | Pages lay out by container width (`@container`), not viewport | The assistant panel takes 400px; grids must respond to the space they actually get | A7 |
 | 2026-09-29 | Slack notifier reads the connection at send time; 403/404/410/`no_service` → mark invalid, other errors → retry | Connect/disconnect/reconnect work without redeploy; revoked webhooks don't retry forever | A6 |
 
 ---

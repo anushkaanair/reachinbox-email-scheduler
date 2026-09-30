@@ -7,6 +7,15 @@ const SENSITIVE_PARAMS = /([?&](?:code|state|token|access_token|id_token)=)[^&#]
 export const redactUrl = (url: string | undefined) => (url ?? '').replace(SENSITIVE_PARAMS, '$1[redacted]');
 
 /**
+ * What request logs may contain. Deliberately minimal: no request or response headers, because
+ * those carry the session cookie (`Cookie` / `Set-Cookie`) and any auth tokens.
+ */
+export const requestLogSerializers = {
+  req: (req: { id: unknown; method: string; url: string }) => ({ id: req.id, method: req.method, url: redactUrl(req.url) }),
+  res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+};
+
+/**
  * Request throttling for abuse-prone endpoints (S4) — distinct from the email send limiter.
  * Redis fixed window, so it holds across API instances. Fails open if Redis is unavailable:
  * throttling must never take the API down.

@@ -7,7 +7,7 @@ export function SearchBar({
   value,
   onChange,
   loading,
-  placeholder = 'Search recipient, subject or body…',
+  placeholder = 'Search emails…',
 }: {
   value: string;
   onChange: (v: string) => void;

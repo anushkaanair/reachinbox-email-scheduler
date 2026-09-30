@@ -30,6 +30,7 @@ import { useArchive } from '@/hooks/useEmails';
 import { useEmailAction, useEmailDetail } from '@/hooks/useInsights';
 import { cn } from '@/lib/cn';
 import { formatWhen } from '@/lib/format';
+import { sanitizeClient } from '@/lib/sanitizeClient';
 
 const EVENT_UI: Record<EmailEvent['type'], { icon: LucideIcon; label: string; tone: string }> = {
   SCHEDULED: { icon: CalendarClock, label: 'Scheduled', tone: 'text-info bg-info-soft' },
@@ -169,7 +170,15 @@ export function EmailDetailPage() {
       ) : (
         <div className="mx-auto mt-8 max-w-3xl">
           <Sender e={e} />
-          <div className="mt-8 pl-0 text-[15px] leading-relaxed whitespace-pre-wrap sm:pl-[3.75rem]">{e.body}</div>
+          {e.bodyIsHtml ? (
+            // The server sanitised this already; cleaning it again here keeps rendering safe on its own.
+            <div
+              className="mt-8 pl-0 text-[15px] leading-relaxed break-words sm:pl-[3.75rem] [&_a]:text-brand-700 [&_a]:underline [&_blockquote]:my-2 [&_blockquote]:border-l-4 [&_blockquote]:border-line [&_blockquote]:pl-4 [&_ol]:ml-6 [&_ol]:list-decimal [&_ul]:ml-6 [&_ul]:list-disc"
+              dangerouslySetInnerHTML={{ __html: sanitizeClient(e.body) }}
+            />
+          ) : (
+            <div className="mt-8 pl-0 text-[15px] leading-relaxed whitespace-pre-wrap sm:pl-[3.75rem]">{e.body}</div>
+          )}
 
           <section aria-labelledby="delivery-h" className="mt-12 rounded-2xl border border-line p-5 sm:ml-[3.75rem]">
             <div className="flex flex-wrap items-center gap-3">

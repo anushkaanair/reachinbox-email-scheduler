@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BounceProtectionSchema, DEFAULT_BOUNCE_PROTECTION } from './bounce.js';
+import { BODY_FORMATS } from './html.js';
 import { SendWindowSchema } from './sendWindow.js';
 import { spintaxError } from './spintax.js';
 
@@ -32,6 +33,8 @@ export const JitterPercentSchema = z.coerce.number().int().min(0).max(50).defaul
 export const CreateCampaignInputSchema = z.object({
   subject: templateText('Subject', 300),
   body: templateText('Body', 50_000),
+  /** TEXT = plain (default); HTML = rich text from the editor, sanitised again on the server. */
+  bodyFormat: z.enum(BODY_FORMATS).default('TEXT'),
   leads: z.array(LeadSchema).min(1, 'Upload at least one lead').max(MAX_LEADS_PER_CAMPAIGN),
   /** ISO timestamp — when the first email goes out. */
   startAt: z.string().datetime({ offset: true }),

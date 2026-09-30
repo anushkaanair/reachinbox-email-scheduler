@@ -166,6 +166,7 @@ router.get('/:id([0-9a-fA-F-]{36})', async (req, res, next) => {
       select: {
         ...rowSelect,
         body: true,
+        bodyIsHtml: true,
         messageId: true,
         attempts: true,
         rateLimitedCount: true,
@@ -194,6 +195,7 @@ router.get('/:id([0-9a-fA-F-]{36})', async (req, res, next) => {
     const body: EmailDetail = {
       ...toRow(e),
       body: e.body,
+      bodyIsHtml: e.bodyIsHtml,
       messageId: e.messageId,
       attempts: e.attempts,
       rateLimitedCount: e.rateLimitedCount,

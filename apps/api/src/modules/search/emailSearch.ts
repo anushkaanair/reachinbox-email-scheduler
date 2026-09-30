@@ -1,6 +1,6 @@
 import type { Client } from '@elastic/elasticsearch';
 import type { PrismaClient } from '@prisma/client';
-import { HL_CLOSE, HL_OPEN, TAB_STATUSES, type SearchQuery } from '@ri/shared';
+import { HL_CLOSE, HL_OPEN, TAB_STATUSES, htmlToText, type SearchQuery } from '@ri/shared';
 
 const SEARCH_FIELDS = ['toEmail^3', 'toName^2', 'subject^2', 'body', 'senderEmail'];
 
@@ -90,7 +90,7 @@ export class EmailSearch {
         toName: r.toName,
         senderEmail: r.sender.email,
         subject: r.subject,
-        body: r.body,
+        body: r.bodyIsHtml ? htmlToText(r.body) : r.body,
         status: r.status,
         tab: tabOf(r.status),
         scheduledAt: r.scheduledAt,

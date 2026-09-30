@@ -102,6 +102,7 @@ const validSpintax = (v: string, ctx: z.RefinementCtx) => {
 export const TestSendInputSchema = z.object({
   subject: z.string().trim().min(1).max(300).superRefine(validSpintax),
   body: z.string().trim().min(1).max(50_000).superRefine(validSpintax),
+  bodyFormat: z.enum(['TEXT', 'HTML']).default('TEXT'),
   senderId: z.string().optional(),
   /** Values used to render the merge tags (usually the lead being previewed). */
   sample: z

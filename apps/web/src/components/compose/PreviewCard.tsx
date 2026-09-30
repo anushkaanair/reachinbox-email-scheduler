@@ -5,10 +5,23 @@ import type { Lead } from '@ri/shared';
 import { Button } from '@/components/ui/Button';
 import { useTestSend } from '@/hooks/useCompose';
 import { cn } from '@/lib/cn';
-import { spin, spintaxVariants } from '@ri/shared';
+import { escapeHtml, isHtmlEmpty, spin, spintaxVariants } from '@ri/shared';
 import { extractTags, leadVars, renderSegments, tagGaps, type Segment } from '@/lib/mergeTags';
+import { sanitizeClient } from '@/lib/sanitizeClient';
 
 const nf = new Intl.NumberFormat();
+
+const MARK_OK = 'rounded px-0.5 font-medium bg-brand-100 text-brand-700';
+const MARK_BLANK = 'rounded px-0.5 font-medium bg-danger-soft text-danger';
+
+/** Sanitised HTML with each {{tag}} replaced by its (escaped) value, highlighted; blank values show the tag in red. */
+function renderHtmlPreview(html: string, vars: Record<string, string | undefined>): string {
+  const lower = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k.toLowerCase(), v]));
+  return sanitizeClient(html).replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_m, tag: string) => {
+    const v = lower[tag.toLowerCase()];
+    return v ? `<mark class="${MARK_OK}">${escapeHtml(v)}</mark>` : `<mark class="${MARK_BLANK}">{{${escapeHtml(tag)}}}</mark>`;
+  });
+}
 
 function Rendered({ segments }: { segments: Segment[] }) {
   return (
@@ -41,11 +54,13 @@ export function PreviewCard({
   leads,
   subject,
   body,
+  bodyFormat = 'TEXT',
   senderId,
 }: {
   leads: Lead[] | null;
   subject: string;
   body: string;
+  bodyFormat?: 'TEXT' | 'HTML';
   senderId: string;
 }) {
   const [index, setIndex] = useState(0);
@@ -58,11 +73,15 @@ export function PreviewCard({
   const vars = useMemo(() => (lead ? leadVars(lead) : { email: 'name@company.com', name: 'Alex' }), [lead]);
   const tags = useMemo(() => extractTags(subject, body), [subject, body]);
   const gaps = useMemo(() => (leads ? tagGaps(leads, tags) : []), [leads, tags]);
-  const hasContent = subject.trim() || body.trim();
+  const isHtml = bodyFormat === 'HTML';
+  const hasBody = isHtml ? !isHtmlEmpty(body) : Boolean(body.trim());
+  const hasContent = subject.trim() || hasBody;
   // The exact variant this recipient gets (spintax is seeded by their address, like the real send).
   const seed = lead?.email ?? vars.email ?? 'preview';
   const spunSubject = useMemo(() => spin(subject, seed), [subject, seed]);
   const spunBody = useMemo(() => spin(body, seed), [body, seed]);
+  // HTML is cleaned first, then {{tags}} become highlighted (escaped) values, so a lead's data can't add markup.
+  const htmlBody = useMemo(() => (isHtml ? renderHtmlPreview(spunBody, vars) : ''), [isHtml, spunBody, vars]);
   const variants = useMemo(() => spintaxVariants(subject) * spintaxVariants(body), [subject, body]);
 
   const sendTest = () =>
@@ -70,6 +89,7 @@ export function PreviewCard({
       {
         subject: subject.trim(),
         body: body.trim(),
+        bodyFormat,
         senderId: senderId || undefined,
         sample: lead ? { email: lead.email, name: lead.name, vars: lead.vars } : undefined,
       },
@@ -152,12 +172,18 @@ export function PreviewCard({
           </span>
         </div>
         <div className="max-h-72 overflow-y-auto px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap" tabIndex={0} aria-label="Email body preview">
-          {body.trim() ? <Rendered segments={renderSegments(spunBody, vars)} /> : <span className="text-muted">Start typing the email body to see it here.</span>}
+          {!hasBody ? (
+            <span className="text-muted">Start typing the email body to see it here.</span>
+          ) : isHtml ? (
+            <div className="[&_blockquote]:border-l-4 [&_blockquote]:border-line [&_blockquote]:pl-4 [&_ol]:ml-6 [&_ol]:list-decimal [&_ul]:ml-6 [&_ul]:list-disc [&_a]:text-brand-700 [&_a]:underline" dangerouslySetInnerHTML={{ __html: htmlBody }} />
+          ) : (
+            <Rendered segments={renderSegments(spunBody, vars)} />
+          )}
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button variant="secondary" onClick={sendTest} loading={test.isPending} disabled={!hasContent || !subject.trim() || !body.trim()}>
+        <Button variant="secondary" onClick={sendTest} loading={test.isPending} disabled={!hasContent || !subject.trim() || !hasBody}>
           <Send className="size-4" /> Send test to my inbox
         </Button>
         {lastPreview && (

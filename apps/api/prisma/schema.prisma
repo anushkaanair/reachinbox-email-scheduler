@@ -126,6 +126,8 @@ model Campaign {
   user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   subject         String
   body            String
+  /// TEXT (plain, the original) or HTML (rich text, sanitised on the server).
+  bodyFormat      String         @default("TEXT")
   startAt         DateTime
   delayBetweenMs  Int
   hourlyLimit     Int
@@ -162,6 +164,8 @@ model Email {
   vars             Json?
   subject          String
   body             String
+  /// True when `body` is sanitised HTML; the plain-text alternative is derived when sending.
+  bodyIsHtml       Boolean      @default(false)
   sequence         Int
   scheduledAt      DateTime
   nextAttemptAt    DateTime

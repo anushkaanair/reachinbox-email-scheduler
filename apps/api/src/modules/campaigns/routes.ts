@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import {
   CreateCampaignInputSchema,
+  escapeHtml,
   PreflightInputSchema,
   renderTemplate,
   spin,
@@ -11,6 +12,7 @@ import {
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { withIdempotency } from '../../lib/idempotency.js';
+import { sanitizeBody } from '../../lib/sanitizeHtml.js';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
 import { sendViaSmtp, type SendFn } from '../../mail/transport.js';
@@ -74,6 +76,7 @@ export function campaignsRouter(queues: QueueSet, opts: { send?: SendFn } = {}) 
         throw new AppError(429, 'RATE_LIMITED', `That sender just sent an email — try again in ${Math.ceil((wait - Date.now()) / 1000)}s`);
       }
 
+      const testHtml = input.bodyFormat === 'HTML';
       const vars = { email: input.sample?.email ?? sender.email, name: input.sample?.name ?? '', ...input.sample?.vars };
       const seed = input.sample?.email ?? sender.email; // same variant the lead will get
       const subject = `[TEST] ${renderTemplate(spin(input.subject, seed), vars)}`;
@@ -82,7 +85,8 @@ export function campaignsRouter(queues: QueueSet, opts: { send?: SendFn } = {}) 
         to: sender.email,
         toName: null,
         subject,
-        body: renderTemplate(spin(input.body, seed), vars),
+        body: renderTemplate(spin(testHtml ? sanitizeBody(input.body) : input.body, seed), vars, testHtml ? escapeHtml : undefined),
+        bodyIsHtml: testHtml,
       }).catch(() => {
         throw new AppError(503, 'UNAVAILABLE', 'Couldn’t send the test email — check the sender’s SMTP account');
       });

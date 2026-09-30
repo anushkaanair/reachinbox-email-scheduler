@@ -210,6 +210,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         toName: email.toName,
         subject: email.subject,
         body: email.body,
+        bodyIsHtml: email.bodyIsHtml,
       });
       await prisma.email.update({
         where: { id: emailId },

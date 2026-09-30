@@ -99,6 +99,8 @@ export type EmailEvent = z.infer<typeof EmailEventSchema>;
 
 export const EmailDetailSchema = EmailRowSchema.extend({
   body: z.string(),
+  /** True when `body` is HTML (already sanitised by the server). */
+  bodyIsHtml: z.boolean(),
   messageId: z.string().nullable(),
   attempts: z.number(),
   rateLimitedCount: z.number(),

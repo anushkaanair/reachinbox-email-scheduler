@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   DEFAULT_BOUNCE_PROTECTION,
+  escapeHtml,
+  htmlToText,
+  isHtmlEmpty,
   isValidEmail,
   makePreview,
   renderTemplate,
@@ -14,6 +17,7 @@ import {
 import type { Redis } from 'ioredis';
 import { AppError } from '../../lib/errors.js';
 import { publishLive } from '../../lib/live.js';
+import { sanitizeBody } from '../../lib/sanitizeHtml.js';
 import { enqueueEmails, enqueueIndex, type QueueSet } from '../../queues/queues.js';
 import type { RateLimiter } from '../../throttle/rateLimiter.js';
 import { applyGuards, forecast, jitterSeed, scheduleTimes, type Forecast } from './planning.js';
@@ -26,7 +30,8 @@ export type SchedulingConfig = {
 };
 
 /** Same as the validated API input, but callers (tests, scripts) may omit the defaulted fields. */
-export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent' | 'bounceProtection'> & {
+export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent' | 'bounceProtection' | 'bodyFormat'> & {
+  bodyFormat?: 'TEXT' | 'HTML';
   skipRecentDays?: number;
   jitterPercent?: number;
   bounceProtection?: Partial<BounceProtection>;
@@ -102,6 +107,10 @@ export async function createCampaign(
   deps: { prisma: PrismaClient; queues: QueueSet; config: SchedulingConfig; redis?: Redis; limiter?: RateLimiter },
 ): Promise<CreateCampaignResponse> {
   const { prisma, queues, config } = deps;
+  const isHtml = input.bodyFormat === 'HTML';
+  // Never trust the browser's HTML: re-sanitise with the allowlist, and refuse a body with nothing in it.
+  const bodyTemplate = isHtml ? sanitizeBody(input.body) : input.body;
+  if (isHtml && isHtmlEmpty(bodyTemplate)) throw new AppError(400, 'VALIDATION', 'Body is required', { fieldErrors: { body: ['Body is required'] } });
   const normalized = normalizeLeads(input.leads);
   const { invalid, duplicates } = normalized;
   if (normalized.clean.length === 0) {
@@ -146,8 +155,10 @@ export async function createCampaign(
       vars: lead.vars,
       // Spintax first (one variant per recipient, seeded by their address), then merge tags.
       subject: renderTemplate(spin(input.subject, lead.email), vars),
-      body: renderTemplate(spin(input.body, lead.email), vars),
-      preview: makePreview(renderTemplate(spin(input.body, lead.email), vars)),
+      // Merge values are escaped in HTML bodies so a lead's data can never inject markup.
+      body: renderTemplate(spin(bodyTemplate, lead.email), vars, isHtml ? escapeHtml : undefined),
+      bodyIsHtml: isHtml,
+      preview: makePreview(isHtml ? htmlToText(renderTemplate(spin(bodyTemplate, lead.email), vars, escapeHtml)) : renderTemplate(spin(bodyTemplate, lead.email), vars)),
       sequence: i,
       scheduledAt: at,
       nextAttemptAt: at,
@@ -160,7 +171,8 @@ export async function createCampaign(
         id: campaignId,
         userId,
         subject: input.subject,
-        body: input.body,
+        body: bodyTemplate,
+        bodyFormat: isHtml ? 'HTML' : 'TEXT',
         startAt: new Date(times[0]!),
         delayBetweenMs: delayMs,
         sendWindow: sendWindow ?? undefined,

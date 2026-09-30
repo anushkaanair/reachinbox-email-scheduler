@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { Sender } from '@prisma/client';
+import { escapeHtml as esc, htmlToText } from '@ri/shared';
 import { decrypt } from '../lib/crypto.js';
 
 /** One pooled SMTP connection set per sender, per process. A cache only — never shared state. */
@@ -27,6 +28,8 @@ export type OutgoingEmail = {
   toName: string | null;
   subject: string;
   body: string;
+  /** True when `body` is sanitised HTML. */
+  bodyIsHtml?: boolean;
 };
 
 export type SendResult = { messageId: string; previewUrl: string | null };
@@ -38,21 +41,26 @@ export type SendFn = (sender: Sender, email: OutgoingEmail) => Promise<SendResul
  */
 export const messageIdFor = (emailId: string) => `<${emailId}@reachinbox.local>`;
 
-const escapeHtml = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
 /** The account's signature goes under the message, separated the way mail clients expect. */
 export const withSignature = (body: string, signature: string | null) => (signature?.trim() ? `${body}\n\n-- \n${signature.trim()}` : body);
 
+/** The HTML version of a message: the rich body as written, or plain text wrapped so line breaks survive. */
+export function htmlFor(email: Pick<OutgoingEmail, 'body' | 'bodyIsHtml'>, signature: string | null): string {
+  const sig = signature?.trim() ? `<div style="margin-top:16px;color:#666">-- <br>${esc(signature.trim()).replace(/\n/g, '<br>')}</div>` : '';
+  return email.bodyIsHtml
+    ? `<div style="font-family:Arial,sans-serif">${email.body}${sig}</div>`
+    : `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${esc(email.body)}${sig}</div>`;
+}
+
 export const sendViaSmtp: SendFn = async (sender, email) => {
-  const text = withSignature(email.body, sender.signature);
+  const plain = email.bodyIsHtml ? htmlToText(email.body) : email.body;
   const info = await transportFor(sender).sendMail({
     from: { name: sender.displayName, address: sender.email },
     ...(sender.replyTo ? { replyTo: sender.replyTo } : {}),
     to: email.toName ? { name: email.toName, address: email.to } : email.to,
     subject: email.subject,
-    text,
-    html: `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(text)}</div>`,
+    text: withSignature(plain, sender.signature),
+    html: htmlFor(email, sender.signature),
     messageId: messageIdFor(email.emailId),
     headers: { 'X-ReachInbox-Email-Id': email.emailId },
   });

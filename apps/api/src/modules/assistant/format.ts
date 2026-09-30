@@ -18,6 +18,8 @@ export function rangeBounds(range: RangeSpec, tz: string, now = Date.now()): { s
       return { since: new Date(startOfToday), label: 'today' };
     case 'yesterday':
       return { since: new Date(zonedTimeToUtc(p.year, p.month, p.day - 1, 0, tz)), until: new Date(startOfToday), label: 'yesterday' };
+    case 'tomorrow':
+      return { since: new Date(zonedTimeToUtc(p.year, p.month, p.day + 1, 0, tz)), until: new Date(zonedTimeToUtc(p.year, p.month, p.day + 2, 0, tz)), label: 'tomorrow' };
     case 'hours':
       return { since: new Date(now - range.n * 3_600_000), label: range.n === 1 ? 'in the last hour' : `in the last ${range.n} hours` };
     case 'days':

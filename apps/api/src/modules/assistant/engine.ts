@@ -115,6 +115,8 @@ export async function handleMessage(userId: string, req: AssistantRequest, deps:
       return senderUsage(ctx);
     case 'slack':
       return slackStatus(ctx);
+    case 'spam':
+      return base('spam', 'Open Compose: the Content check card scores your subject and body out of 100 as you type, lists each spam signal (hype words, ALL CAPS, !!!, too many links, link shorteners) and offers one-click fixes.', { navigate: { to: '/compose', label: 'Compose' }, suggestions: ['Give me an overview'] });
     case 'health':
       return health(ctx);
     case 'dnc_count':
@@ -253,7 +255,10 @@ async function count(c: Ctx, i: Extract<Intent, { kind: 'count' }>): Promise<Ass
   };
   const n = await c.deps.prisma.email.count({ where });
   const when = b.since ? ` ${b.label}` : '';
-  const text = i.statuses ? `${plural(n, 'email')} ${n === 1 ? 'is' : 'are'} ${i.label}${when}.` : `You have ${plural(n, 'email')}${b.since ? ` created ${b.label}` : ' in total'}.`;
+  const onlySent = i.statuses?.length === 1 && i.statuses[0] === 'SENT';
+  const failedToo = onlySent ? await c.deps.prisma.email.count({ where: { userId: c.userId, status: 'FAILED', ...rangeWhere(['FAILED'], b.since, b.until) } }) : 0;
+  const text0 = i.statuses ? (n === 0 ? `No emails are ${i.label}${when}.` : `${plural(n, 'email')} ${n === 1 ? 'is' : 'are'} ${i.label}${when}.`) : `You have ${plural(n, 'email')}${b.since ? ` created ${b.label}` : ' in total'}.`;
+  const text = failedToo > 0 ? `${text0} ${nf.format(failedToo)} more failed, so the Sent tab shows ${nf.format(n + failedToo)}.` : text0;
 
   const blocks: AssistantBlock[] = [];
   if (!i.statuses) {

@@ -1,4 +1,4 @@
-import { flattenSpintax } from './spintax.js';
+import { firstSpintax, flattenSpintax } from './spintax.js';
 
 /**
  * Content check for cold email. A heuristic, not a real spam filter: it flags the patterns that
@@ -117,7 +117,9 @@ function prepare(text: string): string {
   return flattenSpintax(text).replace(/\{\{[^}]*\}\}/g, ' ');
 }
 
-export function checkSpam(subjectTpl: string, bodyTpl: string): SpamReport {
+const prepare1 = (text: string) => firstSpintax(text).replace(/\{\{[^}]*\}\}/g, ' ');
+
+export function checkSpam(subjectTpl: string, bodyTpl: string, hiddenLinks: string[] = []): SpamReport {
   const issues: SpamIssue[] = [];
   const subject = prepare(subjectTpl);
   const body = prepare(bodyTpl);
@@ -172,14 +174,15 @@ export function checkSpam(subjectTpl: string, bodyTpl: string): SpamReport {
     add({ field: 'subject', severity: 'high', title: 'Fake “Re:” / “Fwd:”', detail: 'Pretending to be a reply is deceptive and gets flagged — and it damages trust.', match: subject.match(/^\s*(re|fwd?)\s*:\s*/i)![0], replacement: '' });
 
   // Body shape
-  const words = body.trim().split(/\s+/).filter(Boolean);
-  const links = body.match(URL_RE) ?? [];
+  // Length is judged on ONE variant (every recipient gets one); flattening would count each alternative.
+  const words = prepare1(bodyTpl).trim().split(/\s+/).filter(Boolean);
+  const links = [...new Set([...(body.match(URL_RE) ?? []), ...hiddenLinks].map((u) => u.replace(/[.,;:!?]+$/, '').toLowerCase()))];
   if (bodyTpl.trim() && words.length < 25)
     add({ field: 'body', severity: 'low', title: `Short body (${words.length} words)`, detail: 'A few sentences of genuine context tends to land better than a one-liner.' });
   if (words.length > 220)
     add({ field: 'body', severity: 'medium', title: `Long body (${words.length} words)`, detail: 'Cold emails over ~200 words get fewer replies and look like newsletters.' });
   if (links.length > 2) add({ field: 'body', severity: links.length > 4 ? 'high' : 'medium', title: `${links.length} links`, detail: 'Several links in a first email looks like marketing. One link, or none, is safest.' });
-  const short = body.match(SHORTENERS);
+  const short = [body, ...hiddenLinks].join(' ').match(SHORTENERS);
   if (short) add({ field: 'body', severity: 'high', title: `Link shortener (${short[0].replace(/\/$/, '')})`, detail: 'Shortened links hide the destination and are widely blocked. Use the full URL.' });
 
   // Score: severity-weighted, with diminishing returns so one bad word doesn't read as 0.

@@ -7,7 +7,7 @@ losing or duplicating a single email, and watch it all happen live.
 Built with **TypeScript · Express · BullMQ + Redis · PostgreSQL (Prisma) · Elasticsearch · React + Tailwind**.
 No cron anywhere — every send time is a BullMQ delayed job.
 
-> ▶ **Demo video:** _add link before submission_ · 📋 **Evidence for every claim below:** [`docs/VERIFICATION.md`](docs/VERIFICATION.md)
+> ▶ **Demo video:** https://drive.google.com/file/d/1HoR1W8dbNRUeALc_BVn08EHqL2wGDkqZ/view?usp=drive_link · 📋 **Evidence for every claim below:** [`docs/VERIFICATION.md`](docs/VERIFICATION.md)
 
 ![Scheduled emails, rate-limited rows resuming in order](docs/screenshots/scheduled.png)
 

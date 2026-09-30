@@ -133,3 +133,11 @@ export function flattenSpintax(tpl: string): string {
   const flat = (nodes: Node[]): string => nodes.map((n) => (typeof n === 'string' ? n : n.options.map(flat).join(' '))).join('');
   return flat(r.ast);
 }
+
+/** One representative variant (the first option of every group): what a single recipient's email looks like, for counting words. */
+export function firstSpintax(tpl: string): string {
+  const r = parseSpintax(tpl);
+  if (!r.ok) return tpl;
+  const one = (nodes: Node[]): string => nodes.map((n) => (typeof n === 'string' ? n : one(n.options[0] ?? []))).join('');
+  return one(r.ast);
+}

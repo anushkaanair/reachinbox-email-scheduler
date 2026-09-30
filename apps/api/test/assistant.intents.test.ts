@@ -256,3 +256,17 @@ describe('never over-reaches', () => {
     expect(i.kind === 'campaign_report' && i.target.kind).toBe('one');
   });
 });
+
+describe('counting phrasing', () => {
+  it('"how many did we send" means sent, and "tomorrow" is a range', () => {
+    expect(parseIntent('how many emails did we send in the last 24 hours', undefined, [])).toMatchObject({ kind: 'count', statuses: ['SENT'], range: { kind: 'hours', n: 24 } });
+    expect(parseIntent('how many scheduled for tomorrow', undefined, [])).toMatchObject({ kind: 'count', statuses: ['SCHEDULED'], range: { kind: 'tomorrow' } });
+    expect(parseIntent('is my spam score ok', undefined, []).kind).toBe('spam');
+  });
+});
+
+describe('sent phrasing', () => {
+  it.each(['how many mails did it send', 'how many mails went', 'how many emails went out today'])('%s means sent', (q) => {
+    expect(parseIntent(q, undefined, [])).toMatchObject({ kind: 'count', statuses: ['SENT'] });
+  });
+});

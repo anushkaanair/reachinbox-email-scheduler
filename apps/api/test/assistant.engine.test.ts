@@ -193,7 +193,7 @@ describe('answers come from the user’s real data', () => {
     // Sent 26 hours ago: "yesterday or earlier" everywhere on Earth, never "today".
     await w.mark(c.rows[0]!.id, { status: 'SENT', sentAt: new Date(Date.now() - 26 * 3_600_000) });
     for (const tz of ['Pacific/Kiritimati', 'America/New_York', 'Pacific/Pago_Pago']) {
-      expect((await w.ask('how many emails were sent today', undefined, tz)).text).toContain('0 emails are sent today');
+      expect((await w.ask('how many emails were sent today', undefined, tz)).text).toContain('No emails are sent today');
     }
     expect((await w.ask('how many emails were sent in the last 3 days')).text).toContain('1 email is sent in the last 3 days');
   });

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, ArrowLeft, CalendarClock } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { applySpamFix, htmlToText, isHtmlEmpty, spintaxError, type DraftPayload, type SpamField } from '@ri/shared';
+import { applySpamFix, htmlLinkUrls, htmlToText, isHtmlEmpty, spintaxError, type DraftPayload, type SpamField } from '@ri/shared';
 import { Controller, useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -397,7 +397,7 @@ export function ComposePage() {
 
           <AttachmentList items={files.items} onRemove={(id) => void files.remove(id)} error={files.error} />
 
-          <ContentCheckCard subject={subject} body={htmlToText(body)} onFix={applyFix} />
+          <ContentCheckCard subject={subject} body={htmlToText(body)} links={htmlLinkUrls(body)} onFix={applyFix} />
 
           <PreviewCard leads={leads?.leads ?? null} subject={subject} body={body} bodyFormat="HTML" senderId={senderId} />
         </div>

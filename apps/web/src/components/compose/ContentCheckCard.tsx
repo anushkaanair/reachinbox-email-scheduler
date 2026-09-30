@@ -24,15 +24,19 @@ const SEVERITY: Record<SpamIssue['severity'], { tone: StatusTone; label: string 
 export function ContentCheckCard({
   subject,
   body,
+  links = [],
   onFix,
 }: {
   subject: string;
   body: string;
+  /** Link targets hidden behind link text in a rich body. */
+  links?: string[];
   onFix: (field: SpamField, match: string, replacement: string) => void;
 }) {
   const s = useDeferredValue(subject);
   const b = useDeferredValue(body);
-  const report = useMemo(() => checkSpam(s, b), [s, b]);
+  const l = useDeferredValue(links.join('\n'));
+  const report = useMemo(() => checkSpam(s, b, l ? l.split('\n') : []), [s, b, l]);
   const empty = !subject.trim() && !body.trim();
   const g = GRADE[report.grade];
 

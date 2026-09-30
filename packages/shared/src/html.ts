@@ -56,3 +56,8 @@ export function textToHtml(text: string): string {
 
 /** True when the HTML has nothing a recipient would see (e.g. `<div><br></div>`). */
 export const isHtmlEmpty = (html: string) => htmlToText(html).length === 0;
+
+/** http(s) targets of the links in an HTML body (link text hides them, but spam filters see them). */
+export function htmlLinkUrls(html: string): string[] {
+  return [...html.matchAll(/<a\b[^>]*?\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) => (m[1] ?? m[2] ?? '').trim()).filter((u) => /^https?:\/\//i.test(u));
+}

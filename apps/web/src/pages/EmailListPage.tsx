@@ -1,5 +1,5 @@
 import { Check, Download, Filter, RefreshCw, Sparkles, Zap } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import type { EmailTab } from '@ri/shared';
 import { exportUrl } from '@/api/campaigns';
@@ -29,6 +29,12 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
   const [starred, setStarred] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>(undefined);
   const [archived, setArchived] = useState(false);
+  // Outcome/Archived only exist on the Sent tab: a filter left on when switching tabs would silently empty the other one.
+  useEffect(() => {
+    setStarred(false);
+    setOutcome(undefined);
+    setArchived(false);
+  }, [tab]);
   const filters = useMemo(() => ({ starred: starred || undefined, outcome, archived: archived || undefined }), [starred, outcome, archived]);
   const active = (starred ? 1 : 0) + (outcome ? 1 : 0) + (archived ? 1 : 0);
 

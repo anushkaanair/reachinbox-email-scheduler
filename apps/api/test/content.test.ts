@@ -5,6 +5,7 @@ import {
   CreateCampaignInputSchema,
   flattenSpintax,
   hash32,
+  htmlLinkUrls,
   parseSpintax,
   renderTemplate,
   seededRandom,
@@ -192,5 +193,22 @@ describe('send jitter', () => {
 
   it('does nothing when there is no delay to vary', () => {
     expect(scheduleTimes(3, start, 0, null, 50, 's')).toEqual([start, start, start]);
+  });
+});
+
+describe('content check numbers', () => {
+  const body = 'Hi there, we help teams book more meetings with cold email and I thought of you. Would it make sense to chat for fifteen minutes this week? Happy to share how a similar team got results.';
+  it('counts words on one spintax variant, not every alternative', () => {
+    const plain = checkSpam('Quick question', body).wordCount;
+    const spun = checkSpam('Quick question', `{Hi|Hello|Hey} there, we help teams book more meetings with cold email and I thought of you. {Would it make sense|Are you open|Is it worth} to chat for fifteen minutes this week? Happy to share how a similar team got results.`).wordCount;
+    expect(spun).toBe(plain);
+  });
+  it('counts a repeated link once and sees links hidden behind link text', () => {
+    expect(checkSpam('Quick question', `${body} https://a.test/x {see https://a.test/x|read https://a.test/x}`).linkCount).toBe(1);
+    expect(checkSpam('Quick question', body, ['https://a.test/1', 'https://a.test/2', 'https://a.test/3']).linkCount).toBe(3);
+    expect(checkSpam('Quick question', body, ['https://bit.ly/abc']).issues.some((i) => /shortener/i.test(i.title))).toBe(true);
+  });
+  it('extracts link targets from html', () => {
+    expect(htmlLinkUrls(`<p><a href="https://a.test/1">one</a> <a class="x" href='http://b.test'>two</a> <a href="mailto:x@y.test">m</a></p>`)).toEqual(['https://a.test/1', 'http://b.test']);
   });
 });

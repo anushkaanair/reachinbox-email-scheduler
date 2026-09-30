@@ -15,6 +15,7 @@ export type RangeSpec =
   | { kind: 'all' }
   | { kind: 'today' }
   | { kind: 'yesterday' }
+  | { kind: 'tomorrow' }
   | { kind: 'hours'; n: number }
   | { kind: 'days'; n: number };
 
@@ -27,7 +28,7 @@ export type CampaignFilter = 'active' | 'paused' | 'completed' | 'cancelled';
 export type CampaignAction = 'pause' | 'resume' | 'cancel' | 'retry_failed';
 
 export type Intent =
-  | { kind: 'greeting' | 'thanks' | 'help' | 'health' | 'slack' | 'next_sends' | 'rate_limits' | 'sender_usage' | 'dnc_count' | 'eta_all' | 'retry_all_failed' | 'failed_list' | 'unknown' }
+  | { kind: 'greeting' | 'thanks' | 'help' | 'health' | 'spam' | 'slack' | 'next_sends' | 'rate_limits' | 'sender_usage' | 'dnc_count' | 'eta_all' | 'retry_all_failed' | 'failed_list' | 'unknown' }
   | { kind: 'overview'; range: RangeSpec }
   | { kind: 'count'; statuses: EmailStatus[] | null; label: string; range: RangeSpec }
   | { kind: 'failure_reasons'; range: RangeSpec }
@@ -90,6 +91,7 @@ const has = (norm: string, re: RegExp) => re.test(norm);
 
 export function parseRange(norm: string): RangeSpec {
   if (has(norm, /\byesterday\b/)) return { kind: 'yesterday' };
+  if (has(norm, /\btomorrow\b/)) return { kind: 'tomorrow' };
   if (has(norm, /\btoday\b|\bso far today\b|\bthis morning\b/)) return { kind: 'today' };
   if (has(norm, /\b(last|past) hour\b/)) return { kind: 'hours', n: 1 };
   const m = norm.match(/\b(?:last|past) (\d{1,3}) (hour|hours|hr|hrs|day|days|week|weeks)\b/);
@@ -110,7 +112,7 @@ export function parseStatuses(norm: string): { statuses: EmailStatus[]; label: s
   if (has(norm, /\b(deferred|rate ?limited|throttled)\b/)) return { statuses: ['RATE_LIMITED'], label: 'deferred by a rate limit' };
   if (has(norm, /\b(fail|failed|failing|failure|failures|errored|errors?|bounced|bounces?)\b/)) return { statuses: ['FAILED'], label: 'failed' };
   if (has(norm, /\b(cancelled|canceled)\b/)) return { statuses: ['CANCELLED'], label: 'cancelled' };
-  if (has(norm, /\b(sent|delivered|went out|gone out)\b/)) return { statuses: ['SENT'], label: 'sent' };
+  if (has(norm, /\b(sent|delivered|went out|gone out)\b/) || has(norm, /\b(we|i|you|it|they|did) send\b|\bsend out\b|\b(emails?|mails?) (went|go|goes)\b|\b(went|go|goes) out\b/)) return { statuses: ['SENT'], label: 'sent' };
   if (has(norm, /\b(pending|waiting|outstanding|remaining|unsent|left to send|in the queue|in queue|queued up)\b/))
     return { statuses: ['SCHEDULED', 'RATE_LIMITED', 'SENDING'], label: 'still waiting to go out' };
   if (has(norm, /\b(scheduled|queued|upcoming)\b/)) return { statuses: ['SCHEDULED'], label: 'scheduled' };
@@ -189,6 +191,8 @@ export function parseIntent(message: string, ctx: AssistantContext | undefined, 
   if (has(norm, /^(hi|hello|hey|yo|hiya|good (morning|afternoon|evening))( there)?$/)) return { kind: 'greeting' };
   if (has(norm, /\b(thanks|thank you|thx|cheers|great thanks)\b/) && norm.split(' ').length <= 5) return { kind: 'thanks' };
   if (has(norm, /\b(help|what can you do|what do you do|commands|how do i use|what can i ask|capabilities)\b/)) return { kind: 'help' };
+
+  if (has(norm, /\b(spam|spammy|deliverability|content (check|score))\b/) && emails.length === 0) return { kind: 'spam' };
 
   // 2. do-not-contact list
   const dncWords = has(norm, /\b(do ?not ?contact|dnc|block ?list|blacklist|suppress(ed|ion)?|opt ?outs?|unsubscribed?)\b/);

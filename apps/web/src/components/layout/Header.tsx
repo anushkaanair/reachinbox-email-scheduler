@@ -7,10 +7,9 @@ import { Menu, MenuItem } from '@/components/ui/Menu';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { cn } from '@/lib/cn';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
-import { HealthPill } from './HealthPill';
 import { Logo } from './Logo';
 
-/** Top header: user's name, email, avatar + logout (required by the brief). */
+/** Phone-width header only. On larger screens the account card lives in the sidebar, as in the Figma frames. */
 export function Header() {
   const { user } = useAuth();
   const logout = useLogout();
@@ -19,12 +18,9 @@ export function Header() {
   if (!user) return null;
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-surface-solid/75 backdrop-blur-md">
+    <header className="sticky top-0 z-20 border-b border-line bg-surface-solid md:hidden">
       <div className="flex h-16 items-center justify-between gap-4 px-4 md:px-8">
-        <Logo className="md:hidden" />
-        <div className="hidden md:block">
-          <HealthPill />
-        </div>
+        <Logo />
 
         <div className="flex items-center gap-2">
           <button
@@ -77,7 +73,7 @@ export function Header() {
           ['/dashboard/sent', 'Sent'],
           ['/campaigns', 'Campaigns'],
           ['/analytics', 'Analytics'],
-          ['/senders', 'Senders'],
+          ['/senders', 'Email accounts'],
           ['/settings', 'Settings'],
         ].map(([to, label]) => (
           <NavLink

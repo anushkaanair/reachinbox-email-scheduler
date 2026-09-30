@@ -1,11 +1,10 @@
-import { AlertCircle, CalendarClock, Gauge, ShieldCheck } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
+import { PASSWORD_MIN } from '@ri/shared';
 import { GOOGLE_LOGIN_URL } from '@/api/auth';
-import { Logo } from '@/components/layout/Logo';
-import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Spinner } from '@/components/ui/Spinner';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, usePasswordAuth } from '@/hooks/useAuth';
 
 const ERRORS: Record<string, string> = {
   not_configured: 'Google login is not configured on the server yet (GOOGLE_CLIENT_ID / SECRET).',
@@ -24,70 +23,119 @@ function GoogleIcon() {
   );
 }
 
-const HIGHLIGHTS = [
-  { icon: CalendarClock, text: 'Schedule thousands of emails with exact start times' },
-  { icon: Gauge, text: 'Per-sender throttling & hourly limits, safe across workers' },
-  { icon: ShieldCheck, text: 'Restart-safe and idempotent — never sent twice' },
-];
+const field =
+  'h-14 w-full rounded-xl bg-neutral-soft px-5 text-[15px] text-ink placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-brand-600/40 focus:outline-none aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger-solid/50';
 
+/** The Figma login card: Google first, then email + password. The same form creates an account via the link underneath. */
 export function LoginPage() {
   const { user, isLoading } = useAuth();
   const [params] = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [touched, setTouched] = useState(false);
+  const auth = usePasswordAuth(mode);
   const errorKey = params.get('error');
 
   if (!isLoading && user) return <Navigate to="/dashboard" replace />;
 
+  const emailBad = touched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const passBad = touched && (mode === 'signup' ? password.length < PASSWORD_MIN : password.length === 0);
+  const serverError = auth.error?.message ?? (errorKey ? (ERRORS[errorKey] ?? 'Sign-in failed. Please try again.') : null);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTouched(true);
+    if (emailBad || passBad || !email.trim() || !password) return;
+    auth.mutate({ email: email.trim(), password, ...(mode === 'signup' && name.trim() ? { name: name.trim() } : {}) });
+  };
+
   return (
-    <div className="grid min-h-full lg:grid-cols-2">
-      <section className="relative flex flex-col justify-center px-6 py-12 sm:px-12">
-        <div className="absolute top-4 right-4">
-          <ThemeToggle />
-        </div>
-        <div className="mx-auto w-full max-w-sm">
-          <Logo className="mb-10" />
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted">Sign in to schedule and track your outreach.</p>
+    <main className="grid min-h-full place-items-center bg-canvas px-4 py-12">
+      <div className="w-full max-w-[520px] rounded-2xl border border-line bg-surface px-8 py-12 sm:px-16">
+        <h1 className="text-center text-4xl font-bold tracking-tight">{mode === 'login' ? 'Login' : 'Create account'}</h1>
 
-          {errorKey && (
-            <div role="alert" className="mt-6 flex gap-2 rounded-lg border border-danger-line bg-danger-soft p-3 text-sm text-danger">
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              {ERRORS[errorKey] ?? 'Sign-in failed. Please try again.'}
-            </div>
+        {serverError && (
+          <div role="alert" className="mt-6 flex gap-2 rounded-lg border border-danger-line bg-danger-soft p-3 text-sm text-danger">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {serverError}
+          </div>
+        )}
+
+        <a
+          href={GOOGLE_LOGIN_URL}
+          onClick={() => setRedirecting(true)}
+          aria-busy={redirecting}
+          className="mt-8 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-brand-50 text-[15px] font-medium text-ink transition-colors hover:bg-brand-100"
+        >
+          {redirecting ? <Spinner className="size-5" /> : <GoogleIcon />}
+          Login with Google
+        </a>
+
+        <div className="my-6 flex items-center gap-4 text-sm text-muted" role="separator" aria-label="or">
+          <span className="h-px flex-1 bg-line" />
+          or sign up through email
+          <span className="h-px flex-1 bg-line" />
+        </div>
+
+        <form onSubmit={submit} noValidate className="flex flex-col gap-3">
+          {mode === 'signup' && (
+            <input className={field} type="text" name="name" placeholder="Name (optional)" aria-label="Name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
           )}
-
-          <a
-            href={GOOGLE_LOGIN_URL}
-            onClick={() => setRedirecting(true)}
-            aria-busy={redirecting}
-            className="mt-8 flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-line bg-surface text-sm font-semibold text-ink shadow-sm transition-colors hover:bg-neutral-soft"
+          <input
+            className={field}
+            type="email"
+            name="email"
+            placeholder="Email ID"
+            aria-label="Email ID"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={emailBad}
+            aria-describedby={emailBad ? 'email-err' : undefined}
+          />
+          {emailBad && <p id="email-err" className="-mt-1 px-1 text-xs text-danger">Enter a valid email address</p>}
+          <input
+            className={field}
+            type="password"
+            name="password"
+            placeholder="Password"
+            aria-label="Password"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={passBad}
+            aria-describedby={passBad ? 'pw-err' : undefined}
+            maxLength={128}
+          />
+          {passBad && <p id="pw-err" className="-mt-1 px-1 text-xs text-danger">{mode === 'signup' ? `Use at least ${PASSWORD_MIN} characters` : 'Enter your password'}</p>}
+          <button
+            type="submit"
+            disabled={auth.isPending}
+            className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-base font-medium text-on-brand transition-colors hover:bg-brand-700 disabled:opacity-70"
           >
-            {redirecting ? <Spinner className="size-5" /> : <GoogleIcon />}
-            Login with Google
-          </a>
-          <p className="mt-4 text-center text-xs text-muted">
-            We only read your name, email and profile photo.
-          </p>
-        </div>
-      </section>
+            {auth.isPending && <Spinner className="size-5" />}
+            {mode === 'login' ? 'Login' : 'Create account'}
+          </button>
+        </form>
 
-      <section className="hidden flex-col justify-center border-l border-transparent bg-[#066b3e] px-12 text-white lg:flex dark:border-line dark:bg-transparent">
-        <div className="max-w-md">
-          <h2 className="text-3xl font-bold leading-tight">
-            Cold outreach that actually reaches the <span className="dark:text-accent">inbox</span>.
-          </h2>
-          <ul className="mt-8 space-y-4">
-            {HIGHLIGHTS.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-3 text-white/90">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/15">
-                  <Icon className="size-4" />
-                </span>
-                <span className="pt-1 text-sm">{text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-    </div>
+        <p className="mt-6 text-center text-sm text-muted">
+          {mode === 'login' ? 'New here? ' : 'Already have an account? '}
+          <button
+            type="button"
+            className="font-medium text-brand-600 underline-offset-2 hover:underline"
+            onClick={() => {
+              setMode(mode === 'login' ? 'signup' : 'login');
+              setTouched(false);
+              auth.reset();
+            }}
+          >
+            {mode === 'login' ? 'Create an account' : 'Log in'}
+          </button>
+        </p>
+      </div>
+    </main>
   );
 }

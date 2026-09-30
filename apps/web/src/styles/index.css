@@ -11,22 +11,23 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --c-canvas: #f7f8fa;
+  /* Light theme follows the Figma frames: white canvas, flat, soft grey fills, one green. */
+  --c-canvas: #ffffff;
   --c-surface: #ffffff;
   --c-surface-solid: #ffffff; /* popovers, dialogs, drawers: never translucent */
-  --c-line: #e5e7eb;
-  --c-ink: #0f172a;
-  --c-muted: #5f6b7c; /* ≥ 4.5:1 on canvas and surface */
-  --c-soft: #475569;
-  --c-faint: #cbd5e1;
-  --c-neutral-soft: #f1f5f9;
-  --c-neutral-strong: #e2e8f0;
+  --c-line: #e9ece8;
+  --c-ink: #1a1c1a;
+  --c-muted: #667066; /* ≥ 4.5:1 on white and on the grey fills */
+  --c-soft: #474e47;
+  --c-faint: #cfd5cf;
+  --c-neutral-soft: #f4f5f3; /* inputs, search bar, chips */
+  --c-neutral-strong: #e6e9e5;
 
-  --c-brand-50: #e9f8f0;
-  --c-brand-100: #c9eedb;
-  --c-brand-500: #0b9a5b;
-  --c-brand-600: #08844d; /* white text on this is 4.75:1 */
-  --c-brand-700: #066b3e;
+  --c-brand-50: #e8f4ea; /* active nav item, selected rows */
+  --c-brand-100: #cde6d1;
+  --c-brand-500: #4ca04e; /* Figma green, for non-text fills */
+  --c-brand-600: #2f8538; /* the same hue, dark enough for white text (4.6:1) and green text on white */
+  --c-brand-700: #236b2c;
   --c-on-brand: #ffffff;
 
   --c-danger: #b91c1c;
@@ -36,9 +37,9 @@
   --c-danger-strong: #b91c1c;
   --c-on-danger: #ffffff;
 
-  --c-warn: #92400e;
-  --c-warn-soft: #fffbeb;
-  --c-warn-line: #fde68a;
+  --c-warn: #a0420c; /* the orange "scheduled time" pill */
+  --c-warn-soft: #fdebd7;
+  --c-warn-line: #f6cda3;
   --c-warn-mark: rgb(253 230 138 / 0.75);
 
   --c-info: #0369a1;
@@ -49,10 +50,10 @@
   --c-accent: #6d28d9;
   --c-accent-soft: #f3efff;
   --c-on-accent: #ffffff;
-  --c-focus: #0b9a5b;
+  --c-focus: #2f8538;
 
   /* Status series for charts and progress (checked with the dataviz palette validator). */
-  --c-st-sent: #0b9a5b;
+  --c-st-sent: #4ca04e;
   --c-st-deferred: #e0a100;
   --c-st-failed: #b42318;
   --c-st-pending: #94a3b8;

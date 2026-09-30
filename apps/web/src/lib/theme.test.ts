@@ -4,9 +4,9 @@ import { readThemePref, resolveTheme, saveThemePref } from './theme';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('theme preference', () => {
-  it('follows the system by default and when storage is unavailable', () => {
+  it('defaults to light (the Figma design), also when storage is unavailable', () => {
     // No localStorage at all (as in a locked-down browser): must not throw.
-    expect(readThemePref()).toBe('system');
+    expect(readThemePref()).toBe('light');
     expect(() => saveThemePref('dark')).not.toThrow();
   });
 
@@ -17,8 +17,10 @@ describe('theme preference', () => {
     expect(readThemePref()).toBe('dark');
     saveThemePref('light');
     expect(readThemePref()).toBe('light');
-    store['ri-theme'] = 'purple';
+    saveThemePref('system'); // following the device is still an explicit, remembered choice
     expect(readThemePref()).toBe('system');
+    store['ri-theme'] = 'purple';
+    expect(readThemePref()).toBe('light');
   });
 
   it('resolves "system" from the device setting and leaves explicit choices alone', () => {
@@ -37,7 +39,7 @@ describe('theme preference', () => {
         throw new Error('blocked');
       },
     });
-    expect(readThemePref()).toBe('system');
+    expect(readThemePref()).toBe('light');
     expect(() => saveThemePref('light')).not.toThrow();
   });
 });

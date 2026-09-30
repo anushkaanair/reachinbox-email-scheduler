@@ -3,7 +3,7 @@ import type { EmailEventType, Prisma, PrismaClient } from '@prisma/client';
 import type { Logger } from 'pino';
 import type { SendFn } from '../mail/transport.js';
 import type { RateLimiter, Ticket } from '../throttle/rateLimiter.js';
-import { isAuthError, isHardBounce, isInSendWindow, nextSendWindowStart, SendWindowSchema, warmupCap, warmupDay } from '@ri/shared';
+import { bounceVerdict, isAuthError, isHardBounce, isInSendWindow, nextSendWindowStart, SendWindowSchema, warmupCap, warmupDay } from '@ri/shared';
 import { windowEnd } from '../throttle/windows.js';
 import type { EmailJobData, RateLimitNotice } from './queues.js';
 
@@ -30,7 +30,11 @@ export type ProcessorDeps = {
   onEmailChanged?: (emailId: string, change: EmailChange) => Promise<void>;
   /** Called when the circuit breaker pauses a sender (→ live toast + Slack). */
   onSenderPaused?: (notice: SenderPausedNotice) => Promise<void>;
+  /** Called when bounce protection pauses a campaign (→ live toast + Slack). */
+  onCampaignPaused?: (notice: CampaignPausedNotice) => Promise<void>;
 };
+
+export type CampaignPausedNotice = { campaignId: string; userId: string; subject: string; bounceRate: number; threshold: number; bounced: number; attempts: number };
 
 export type EmailChange = { userId: string; campaignId: string; status: string };
 
@@ -120,10 +124,12 @@ export function createEmailProcessor(deps: ProcessorDeps) {
 
     // Warm-up ramp: today's daily cap for this sender (none once warm-up is complete).
     const s = email.sender;
-    const dailyCap =
+    const warmupToday =
       s.warmupEnabled && s.warmupStartedAt
         ? warmupCap({ start: s.warmupStart, increment: s.warmupIncrement, target: s.warmupTarget }, warmupDay(s.warmupStartedAt.getTime(), now, limiter.dayMs))
         : null;
+    // The account's own daily limit and the warm-up ramp both apply: the lower one wins.
+    const dailyCap = warmupToday === null ? s.dailyLimit : s.dailyLimit === null ? warmupToday : Math.min(warmupToday, s.dailyLimit);
 
     const limits = {
       global: config.maxPerWindowGlobal,
@@ -141,7 +147,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
     }
 
     if (!ticket) {
-      const res = await limiter.acquire({ now, senderId: email.senderId, campaignId: email.campaignId, limits });
+      const res = await limiter.acquire({ now, senderId: email.senderId, campaignId: email.campaignId, limits, minDelayMs: s.minDelayMs ?? undefined });
       if (!res.ok) {
         await prisma.email.updateMany({
           where: { id: emailId, status: { in: [...CLAIMABLE] } },
@@ -184,7 +190,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
 
     // Strict min-delay at the real dispatch instant (the reserved ticket is kept while waiting).
     const dispatchAt = Date.now();
-    const notBefore = await limiter.gate(email.senderId, dispatchAt);
+    const notBefore = await limiter.gate(email.senderId, dispatchAt, s.minDelayMs ?? undefined);
     if (notBefore > 0) return delay(job, token, notBefore);
 
     // DB-level idempotency: exactly one worker can move the row out of a claimable state.
@@ -232,7 +238,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
       await prisma.email.update({
         where: { id: emailId },
         data: final
-          ? { status: 'FAILED', failedAt: new Date(), lockedAt: null, lastError: message }
+          ? { status: 'FAILED', failedAt: new Date(), lockedAt: null, lastError: message, ...(bounce ? { bouncedAt: new Date() } : {}) }
           : { status: 'SCHEDULED', lockedAt: null, lastError: message },
       });
       await job.updateData({ emailId }); // a retry must re-acquire a fresh slot
@@ -248,10 +254,40 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         await prisma.suppressedEmail
           .upsert({ where: { userId_email: { userId: email.campaign.userId, email: email.toEmail } }, create: { userId: email.campaign.userId, email: email.toEmail }, update: {} })
           .catch(() => undefined);
+        await protectFromBounces(email.campaignId);
       }
       throw err; // BullMQ applies exponential backoff; FAILED after the last attempt
     }
   };
+
+  /**
+   * Bounce protection: re-judge the campaign each time an address bounces (event-driven, so no timer).
+   * The conditional update lets exactly one worker win the pause, so the alert fires once. Emails stay
+   * SCHEDULED and their jobs skip while it's paused; Resume re-queues them (see campaigns/controls.ts).
+   */
+  async function protectFromBounces(campaignId: string) {
+    try {
+      const c = await prisma.campaign.findUnique({ where: { id: campaignId } });
+      if (!c || c.status !== 'ACTIVE' || c.bounceThresholdPercent <= 0) return;
+      const [sent, bounced] = await Promise.all([
+        prisma.email.count({ where: { campaignId, status: 'SENT' } }),
+        prisma.email.count({ where: { campaignId, bouncedAt: { not: null } } }),
+      ]);
+      const verdict = bounceVerdict({ sent, bounced }, { thresholdPercent: c.bounceThresholdPercent, minSends: c.bounceMinSends });
+      if (!verdict.breached) return;
+      const won = await prisma.campaign.updateMany({ where: { id: campaignId, status: 'ACTIVE' }, data: { status: 'PAUSED', pauseReason: 'BOUNCE_PROTECTION' } });
+      if (won.count !== 1) return;
+      const pending = await prisma.email.findMany({ where: { campaignId, status: { in: [...CLAIMABLE] } }, select: { id: true } });
+      for (let i = 0; i < pending.length; i += 1000) {
+        await prisma.emailEvent.createMany({ data: pending.slice(i, i + 1000).map((p) => ({ emailId: p.id, userId: c.userId, type: 'PAUSED' as const, meta: { reason: 'bounce_protection' } })) });
+      }
+      const rate = Math.round(verdict.ratePercent! * 10) / 10;
+      logger.warn({ campaignId, bounced, attempts: verdict.attempts, rate }, 'campaign paused by bounce protection');
+      await deps.onCampaignPaused?.({ campaignId, userId: c.userId, subject: c.subject, bounceRate: rate, threshold: c.bounceThresholdPercent, bounced, attempts: verdict.attempts }).catch(() => undefined);
+    } catch (e) {
+      logger.warn({ err: e }, 'bounce protection check failed (send path unaffected)');
+    }
+  }
 
   /**
    * Circuit breaker bookkeeping. Sender-side failures count toward a pause; a hard bounce is the

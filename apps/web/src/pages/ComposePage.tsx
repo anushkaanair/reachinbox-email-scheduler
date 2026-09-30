@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertTriangle, ArrowLeft, CalendarClock, Send } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarClock } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { applySpamFix, spintaxError, type SpamField } from '@ri/shared';
 import { useForm } from 'react-hook-form';
@@ -9,16 +9,18 @@ import { z } from 'zod';
 import { ApiError } from '@/api/client';
 import { ContentCheckCard } from '@/components/compose/ContentCheckCard';
 import { ForecastCard } from '@/components/compose/ForecastCard';
-import { LeadsUpload, type UploadedLeads } from '@/components/compose/LeadsUpload';
+import { RecipientsField } from '@/components/compose/RecipientsField';
+import { SendLater } from '@/components/compose/SendLater';
 import { PreviewCard } from '@/components/compose/PreviewCard';
-import { SendingRules, defaultRules, hoursError, rulesToSendWindow, type Rules } from '@/components/compose/SendingRules';
+import { SendingRules, defaultRules, hoursError, rulesToBounceProtection, rulesToSendWindow, type Rules } from '@/components/compose/SendingRules';
 import { Button } from '@/components/ui/Button';
-import { Input, Select, Textarea } from '@/components/ui/Field';
+import { Select } from '@/components/ui/Field';
 import { usePreflight, useSuppressions } from '@/hooks/useCompose';
 import { useScheduleCampaign, useSenders } from '@/hooks/useCampaigns';
 import { useDebounced } from '@/hooks/useIntegrations';
 import { formatWhen } from '@/lib/format';
-import { QUICK_STARTS, estimateFinish, toLocalInput } from '@/lib/schedule';
+import { EMPTY_RECIPIENTS, type Recipients } from '@/lib/recipients';
+import { estimateFinish, toLocalInput } from '@/lib/schedule';
 
 const spintaxRefine = (v: string, ctx: z.RefinementCtx) => {
   const err = spintaxError(v);
@@ -48,12 +50,23 @@ type FormValues = z.infer<typeof FormSchema>;
 
 const nf = new Intl.NumberFormat();
 
+/** One label-left row of the Figma compose form. Defined at module level so inputs keep focus between renders. */
+function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid items-start gap-x-4 gap-y-1 sm:grid-cols-[5.5rem_1fr]">
+      <label htmlFor={htmlFor} className="pt-2.5 text-sm text-ink">{label}</label>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
 export function ComposePage() {
   const navigate = useNavigate();
   const senders = useSenders();
   const schedule = useScheduleCampaign();
   const dnc = useSuppressions();
-  const [leads, setLeads] = useState<UploadedLeads | null>(null);
+  const [recipients, setRecipients] = useState<Recipients>(EMPTY_RECIPIENTS);
+  const [sendAt, setSendAt] = useState<Date | null>(null); // null = send straight away
   const [leadsError, setLeadsError] = useState<string>();
   const [leadsKey, setLeadsKey] = useState(''); // identifies the uploaded list in the forecast cache
   const [rules, setRules] = useState<Rules>(defaultRules);
@@ -65,7 +78,7 @@ export function ComposePage() {
       senderId: '',
       subject: '',
       body: '',
-      startAt: toLocalInput(new Date(Date.now() + 5 * 60_000)),
+      startAt: toLocalInput(new Date()),
       delayBetweenSeconds: 2,
       hourlyLimit: 50,
       jitterPercent: 0,
@@ -75,6 +88,7 @@ export function ComposePage() {
   const { errors } = formState;
   const bodyField = register('body');
 
+  const leads = recipients.leads.length > 0 ? recipients : null;
   const [senderId, startAt, delay, hourly, jitter, subject, body] = watch([
     'senderId',
     'startAt',
@@ -173,6 +187,7 @@ export function ComposePage() {
         sendWindow: rulesToSendWindow(rules),
         skipRecentDays: rules.skipOn ? rules.skipDays : 0,
         jitterPercent: v.jitterPercent,
+        bounceProtection: rulesToBounceProtection(rules),
       },
       {
         onSuccess: (res) => {
@@ -201,78 +216,109 @@ export function ComposePage() {
     );
   });
 
-  // Leads live outside react-hook-form; flag them in the same pass as field errors.
+  // Recipients live outside react-hook-form; flag them in the same pass as field errors.
   const onSubmit = (e: FormEvent) => {
     if (!leads?.leads.length) setLeadsError(NO_LEADS);
+    // "Send" means now: take the clock at the moment of pressing, so a page left open can't be "in the past".
+    if (!sendAt) setValue('startAt', toLocalInput(new Date()));
     return submitValid(e);
   };
 
   const blocked = noSenders || nothingToSend || Boolean(rulesError);
+  const sendLabel = sendAt ? 'Send Later' : 'Send';
+
+  const underline = 'h-11 w-full border-b border-line bg-transparent text-[15px] placeholder:text-muted focus:border-brand-600 focus:outline-none aria-[invalid=true]:border-danger-solid';
+  const small = 'h-10 w-20 rounded-lg border border-line bg-surface px-3 text-center text-sm placeholder:text-muted focus:border-brand-600 focus:outline-none aria-[invalid=true]:border-danger-solid';
 
   return (
     <form onSubmit={onSubmit} noValidate className="mx-auto max-w-6xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link to="/dashboard" className="mb-1 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-            <ArrowLeft className="size-4" /> Back
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight">Compose New Email</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => navigate('/dashboard')}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={schedule.isPending} disabled={blocked}>
-            <CalendarClock className="size-4" /> Schedule
-          </Button>
-        </div>
+      <div className="mb-6 flex items-center gap-3">
+        <Link to="/dashboard" aria-label="Back" className="rounded-full p-1.5 text-ink hover:bg-neutral-soft">
+          <ArrowLeft className="size-6" aria-hidden />
+        </Link>
+        <h1 className="flex-1 text-2xl font-medium tracking-tight">Compose New Email</h1>
+        <SendLater value={sendAt} onChange={(d) => { setSendAt(d); setValue('startAt', toLocalInput(d ?? new Date()), { shouldValidate: true }); }} />
+        <Button
+          type="submit"
+          variant="secondary"
+          loading={schedule.isPending}
+          disabled={blocked}
+          className="h-10 rounded-full border-brand-600 px-6 text-brand-600 hover:bg-brand-50"
+        >
+          {sendLabel}
+        </Button>
       </div>
+
+      {sendAt && (
+        <p className="mb-4 flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700" role="status">
+          <CalendarClock className="size-4" aria-hidden /> Scheduled to start {formatWhen(sendAt.toISOString())}
+        </p>
+      )}
+      {errors.startAt?.message && <p role="alert" className="mb-4 text-sm text-danger">{errors.startAt.message}</p>}
 
       {noSenders && (
         <div role="alert" className="mb-5 flex gap-2 rounded-lg border border-warn-line bg-warn-soft p-3 text-sm text-warn">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          No sending accounts are configured. Run <code className="font-mono">npm run senders:create -w @ri/api</code>.
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            No sending accounts are connected. <Link to="/senders" className="font-medium underline">Connect one on Email accounts</Link>.
+          </span>
         </div>
       )}
 
-      <div className="grid gap-6 @4xl:grid-cols-[1fr_360px]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <section className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 md:p-6" aria-label="Message">
-            <Select label="From" {...register('senderId')} disabled={senders.isPending}>
-              <option value="">
-                {senders.isPending ? 'Loading senders…' : `All senders · round-robin (${activeSenders.length})`}
-              </option>
-              {activeSenders.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.email} — {s.usedThisWindow}/{s.hourlyLimit} this hour
-                </option>
-              ))}
-            </Select>
+      <div className="grid gap-x-10 gap-y-8 @4xl:grid-cols-[1fr_340px]">
+        <div className="flex min-w-0 flex-col gap-5">
+          <section className="flex flex-col gap-5" aria-label="Message">
+            <Row label="From" htmlFor="from">
+              <select id="from" {...register('senderId')} disabled={senders.isPending} className="h-10 max-w-full rounded-lg bg-neutral-soft px-3 pr-8 text-[15px] focus:ring-2 focus:ring-brand-600/40 focus:outline-none">
+                <option value="">{senders.isPending ? 'Loading senders…' : `All senders · round-robin (${activeSenders.length})`}</option>
+                {activeSenders.map((s) => (
+                  <option key={s.id} value={s.id}>{s.email} — {s.usedThisWindow}/{s.hourlyLimit} this hour</option>
+                ))}
+              </select>
+            </Row>
 
-            <LeadsUpload
-              value={leads}
-              onChange={(v) => {
-                setLeads(v);
-                setLeadsKey(crypto.randomUUID());
-                setLeadsError(undefined);
-              }}
-              error={leadsError}
-            />
+            <Row label="To">
+              <RecipientsField
+                value={recipients}
+                onChange={(v) => { setRecipients(v); setLeadsKey(crypto.randomUUID()); setLeadsError(undefined); }}
+                error={leadsError}
+              />
+            </Row>
 
-            <Input label="Subject" placeholder="{Quick|Short} question, {{name}}" error={errors.subject?.message ?? liveSubjectErr} {...register('subject')} />
+            <Row label="Subject" htmlFor="subject">
+              <input id="subject" placeholder="Subject" aria-invalid={Boolean(errors.subject?.message ?? liveSubjectErr)} className={underline} {...register('subject')} />
+              {(errors.subject?.message ?? liveSubjectErr) && <p role="alert" className="mt-1 text-xs text-danger">{errors.subject?.message ?? liveSubjectErr}</p>}
+            </Row>
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 sm:pl-[6.25rem]">
+              <label className="flex items-center gap-3 text-sm">
+                Delay between 2 emails
+                <input type="number" min={0} placeholder="00" aria-invalid={Boolean(errors.delayBetweenSeconds)} className={small} {...register('delayBetweenSeconds')} />
+                <span className="text-xs text-muted">seconds</span>
+              </label>
+              <label className="flex items-center gap-3 text-sm">
+                Hourly Limit
+                <input type="number" min={1} placeholder="00" aria-invalid={Boolean(errors.hourlyLimit)} className={small} {...register('hourlyLimit')} />
+              </label>
+              {(errors.delayBetweenSeconds?.message || errors.hourlyLimit?.message) && (
+                <p role="alert" className="basis-full text-xs text-danger">{errors.delayBetweenSeconds?.message ?? errors.hourlyLimit?.message}</p>
+              )}
+            </div>
 
             <div className="flex flex-col gap-2">
-              <Textarea
-                label="Body"
-                rows={12}
+              <textarea
+                aria-label="Body"
+                rows={14}
                 placeholder={'Hi {{name}},\n\nWrite your email here…'}
-                error={errors.body?.message ?? liveBodyErr}
+                aria-invalid={Boolean(errors.body?.message ?? liveBodyErr)}
+                className="min-h-80 w-full resize-y rounded-2xl bg-neutral-soft p-5 text-[15px] leading-relaxed placeholder:text-muted focus:ring-2 focus:ring-brand-600/40 focus:outline-none aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger-solid/50"
                 {...bodyField}
                 ref={(el) => {
                   bodyField.ref(el);
                   bodyRef.current = el;
                 }}
               />
+              {(errors.body?.message ?? liveBodyErr) && <p role="alert" className="text-xs text-danger">{errors.body?.message ?? liveBodyErr}</p>}
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                 <span>Insert:</span>
                 {(leads?.tags ?? ['email', 'name']).map((t) => (
@@ -281,7 +327,7 @@ export function ComposePage() {
                     type="button"
                     onMouseDown={(e) => e.preventDefault()} // keep focus + caret in the body
                     onClick={() => insertTag(t)}
-                    className="rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-ink hover:border-brand-500 hover:text-brand-700"
+                    className="rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-ink hover:border-brand-600 hover:text-brand-700"
                   >
                     {`{{${t}}}`}
                   </button>
@@ -297,7 +343,7 @@ export function ComposePage() {
                 </button>
               </div>
               <p className="text-xs text-muted">
-                Tip: write <code className="font-mono text-soft">{'{Hi|Hello|Hey}'}</code> to vary wording — each recipient gets one option, and the preview shows theirs.
+                Tip: write <code className="font-mono text-soft">{'{Hi|Hello|Hey}'}</code> to vary wording: each recipient gets one option, and the preview shows theirs.
               </p>
             </div>
           </section>
@@ -308,30 +354,18 @@ export function ComposePage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-6 @4xl:self-start">
-          <aside className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 md:p-6" aria-label="Sending schedule">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Schedule</h2>
-            <div className="flex flex-col gap-2">
-              <Input type="datetime-local" label="Start time" error={errors.startAt?.message} {...register('startAt')} />
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_STARTS.map((q) => (
-                  <button
-                    key={q.label}
-                    type="button"
-                    onClick={() => setValue('startAt', toLocalInput(q.at()), { shouldValidate: true })}
-                    className="rounded-full border border-line px-2.5 py-1 text-xs text-muted hover:border-brand-500 hover:text-brand-700"
-                  >
-                    {q.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Input
-              type="number"
-              min={0}
-              label="Delay between emails (seconds)"
-              error={errors.delayBetweenSeconds?.message}
-              {...register('delayBetweenSeconds')}
-            />
+          <aside className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-5" aria-label="Summary">
+            <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Summary</h2>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <dt className="text-muted">Recipients</dt>
+              <dd className="text-right font-medium tabular-nums">{nf.format(sendable)}</dd>
+              <dt className="text-muted">Senders</dt>
+              <dd className="text-right font-medium tabular-nums">{chosen.length}</dd>
+              <dt className="text-muted">First email</dt>
+              <dd className="text-right font-medium">{formatWhen(first)}</dd>
+              <dt className="text-muted">Est. finish</dt>
+              <dd className="text-right font-medium">{finish ? `≈ ${formatWhen(finish)}` : '—'}</dd>
+            </dl>
             <Select
               label="Randomise gaps"
               hint={
@@ -342,37 +376,15 @@ export function ComposePage() {
               {...register('jitterPercent')}
             >
               {JITTER_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </Select>
-            <Input
-              type="number"
-              min={1}
-              label="Hourly limit"
-              hint="Max emails per hour for this campaign"
-              error={errors.hourlyLimit?.message}
-              {...register('hourlyLimit')}
-            />
-
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg bg-canvas/70 p-3 text-sm">
-              <dt className="text-muted">Recipients</dt>
-              <dd className="text-right font-medium tabular-nums">{nf.format(sendable)}</dd>
-              <dt className="text-muted">Senders</dt>
-              <dd className="text-right font-medium tabular-nums">{chosen.length}</dd>
-              <dt className="text-muted">First email</dt>
-              <dd className="text-right font-medium">{formatWhen(first)}</dd>
-              <dt className="text-muted">Est. finish</dt>
-              <dd className="text-right font-medium">{finish ? `≈ ${formatWhen(finish)}` : '—'}</dd>
-            </dl>
-
-            <Button type="submit" size="lg" loading={schedule.isPending} disabled={blocked} className="w-full">
-              <Send className="size-4" /> Schedule {leads ? nf.format(sendable) : ''} emails
+            <Button type="submit" variant="secondary" loading={schedule.isPending} disabled={blocked} className="w-full rounded-full border-brand-600 text-brand-600 hover:bg-brand-50">
+              <CalendarClock className="size-4" aria-hidden /> Schedule {leads ? nf.format(sendable) : ''} email{sendable === 1 ? '' : 's'}
             </Button>
           </aside>
 
-          <div className="rounded-xl border border-line bg-surface p-5 md:p-6">
+          <div className="rounded-2xl border border-line bg-surface p-5">
             <SendingRules value={rules} onChange={setRules} dncCount={dnc.data?.total} />
           </div>
 

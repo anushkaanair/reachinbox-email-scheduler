@@ -1,7 +1,7 @@
 import { ShieldCheck } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import type { SendWindow } from '@ri/shared';
+import { DEFAULT_BOUNCE_PROTECTION, type SendWindow } from '@ri/shared';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input, Select } from '@/components/ui/Field';
 
@@ -13,6 +13,9 @@ export type Rules = {
   weekdaysOnly: boolean;
   skipOn: boolean;
   skipDays: number;
+  /** Pause the campaign by itself when too many addresses bounce (on by default). */
+  bounceOn: boolean;
+  bounceThreshold: number;
 };
 
 const browserZone = () => {
@@ -31,7 +34,12 @@ export const defaultRules = (): Rules => ({
   weekdaysOnly: true,
   skipOn: false, // off by default so re-sending the same test file isn't a surprise; one tick turns it on
   skipDays: 30,
+  bounceOn: true,
+  bounceThreshold: DEFAULT_BOUNCE_PROTECTION.thresholdPercent,
 });
+
+/** What the API gets: threshold 0 turns protection off. */
+export const rulesToBounceProtection = (r: Rules) => ({ thresholdPercent: r.bounceOn ? r.bounceThreshold : 0, minSends: DEFAULT_BOUNCE_PROTECTION.minSends });
 
 export const rulesToSendWindow = (r: Rules): SendWindow | undefined =>
   r.hoursOn ? { startHour: r.startHour, endHour: r.endHour, timezone: r.timezone, weekdaysOnly: r.weekdaysOnly } : undefined;
@@ -106,6 +114,25 @@ export function SendingRules({ value, onChange, dncCount }: { value: Rules; onCh
             label="Within the last (days)"
             value={value.skipDays}
             onChange={(e) => set({ skipDays: Math.min(365, Math.max(1, Number(e.target.value) || 1)) })}
+          />
+        </div>
+      )}
+
+      <Checkbox
+        label="Pause automatically if too many addresses bounce"
+        hint={`Protects your senders’ reputation. Judged once at least ${DEFAULT_BOUNCE_PROTECTION.minSends} emails have been attempted; nothing is dropped, and you can resume it.`}
+        checked={value.bounceOn}
+        onChange={(e) => set({ bounceOn: e.target.checked })}
+      />
+      {value.bounceOn && (
+        <div className="ml-6.5 border-l-2 border-brand-100 pl-4">
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            label="Pause when bounces exceed (%)"
+            value={value.bounceThreshold}
+            onChange={(e) => set({ bounceThreshold: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
           />
         </div>
       )}

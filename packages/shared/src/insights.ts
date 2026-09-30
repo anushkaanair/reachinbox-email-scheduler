@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CampaignPauseReasonSchema } from './bounce.js';
 import { CampaignStatusSchema } from './email.js';
 
 export const CampaignSummarySchema = z.object({
@@ -20,6 +21,14 @@ export const CampaignSummarySchema = z.object({
   }),
   /** Latest nextAttemptAt of any pending email, i.e. when the campaign should finish. */
   lastPendingAt: z.string().nullable(),
+  /** Hard bounces so far, and their share of attempted emails (null until something was attempted). */
+  bounced: z.number(),
+  bounceRate: z.number().nullable(),
+  bounceProtection: z.object({ thresholdPercent: z.number(), minSends: z.number() }),
+  /** Set when the campaign paused itself (not a person). */
+  pauseReason: CampaignPauseReasonSchema.nullable(),
+  /** All the campaign's waiting emails belong to senders that are paused or removed, so nothing will go out yet. */
+  senderBlocked: z.enum(['PAUSED', 'INACTIVE']).nullable(),
 });
 export type CampaignSummary = z.infer<typeof CampaignSummarySchema>;
 

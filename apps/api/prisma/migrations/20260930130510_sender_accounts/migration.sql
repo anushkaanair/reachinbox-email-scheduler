@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "Sender" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "dailyLimit" INTEGER,
+ADD COLUMN     "dnsCheckedAt" TIMESTAMP(3),
+ADD COLUMN     "dnsResult" JSONB,
+ADD COLUMN     "errorAcknowledgedAt" TIMESTAMP(3),
+ADD COLUMN     "firstName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "lastName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "lastTestAt" TIMESTAMP(3),
+ADD COLUMN     "lastTestOk" BOOLEAN,
+ADD COLUMN     "minDelayMs" INTEGER,
+ADD COLUMN     "provider" TEXT NOT NULL DEFAULT 'ETHEREAL',
+ADD COLUMN     "replyTo" TEXT,
+ADD COLUMN     "signature" TEXT,
+ADD COLUMN     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[];

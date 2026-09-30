@@ -85,7 +85,8 @@ const SCOPES: Scope[] = ['global', 'sender', 'campaign', 'daily'];
 /** `daily` is the sender's per-day cap (warm-up ramp); omit or Infinity for no daily cap. */
 export type Limits = { global: number; sender: number; campaign: number; daily?: number };
 const NO_LIMIT = 1_000_000_000;
-export type AcquireInput = { now: number; senderId: string; campaignId: string; limits: Limits };
+/** `minDelayMs` raises this sender's gap above the limiter-wide floor (it can never lower it). */
+export type AcquireInput = { now: number; senderId: string; campaignId: string; limits: Limits; minDelayMs?: number };
 
 /** A reserved send: at `slot` (epoch ms), counted in window `w` and day `d`. Stored on the job so it survives restarts. */
 export type Ticket = { slot: number; w: number; d?: number };
@@ -136,8 +137,9 @@ export class RateLimiter {
     return index * (scope === 'daily' ? this.dayMs : this.opts.windowMs);
   }
 
-  async acquire({ now, senderId, campaignId, limits }: AcquireInput): Promise<AcquireResult> {
-    const { prefix, windowMs, minDelayMs } = this.opts;
+  async acquire({ now, senderId, campaignId, limits, minDelayMs: senderMin }: AcquireInput): Promise<AcquireResult> {
+    const { prefix, windowMs } = this.opts;
+    const minDelayMs = this.effectiveMinDelay(senderMin);
     const daily = limits.daily === undefined || !Number.isFinite(limits.daily) ? NO_LIMIT : Math.max(0, Math.floor(limits.daily));
     const res = await this.r.riAcquire(
       `${prefix}throttle:slot:${senderId}`,
@@ -164,9 +166,15 @@ export class RateLimiter {
   }
 
   /** 0 → dispatch now (recorded); otherwise the epoch ms at which this sender may next dispatch. */
-  async gate(senderId: string, now: number): Promise<number> {
-    if (this.opts.minDelayMs <= 0) return 0;
-    return this.r.riGate(`${this.opts.prefix}throttle:last:${senderId}`, now, this.opts.minDelayMs);
+  async gate(senderId: string, now: number, senderMinDelayMs?: number): Promise<number> {
+    const d = this.effectiveMinDelay(senderMinDelayMs);
+    if (d <= 0) return 0;
+    return this.r.riGate(`${this.opts.prefix}throttle:last:${senderId}`, now, d);
+  }
+
+  /** The server-wide minimum, raised (never lowered) by a per-sender setting. */
+  effectiveMinDelay(senderMinDelayMs?: number | null): number {
+    return Math.max(this.opts.minDelayMs, senderMinDelayMs ?? 0);
   }
 
   /** Current usage for a sender in the window containing `now` (dashboards/analytics). */

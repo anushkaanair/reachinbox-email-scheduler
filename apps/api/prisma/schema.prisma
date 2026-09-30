@@ -11,7 +11,10 @@ datasource db {
 
 model User {
   id               String            @id @default(cuid())
-  googleId         String            @unique
+  /// Null for accounts created with email + password (set when the owner later signs in with Google).
+  googleId         String?           @unique
+  /// scrypt hash (see modules/auth/password.ts). Null for Google-only accounts.
+  passwordHash     String?
   email            String            @unique
   name             String
   avatarUrl        String?
@@ -21,6 +24,8 @@ model User {
   slack            SlackConnection?
   suppressed       SuppressedEmail[]
   assistantActions AssistantAction[]
+  /// First-run onboarding answers, tour progress and checklist state (see shared/onboarding.ts). Null = not seen yet.
+  onboarding       Json?
 }
 
 /// One Slack workspace/channel per user (tenant = user).
@@ -65,6 +70,27 @@ model Sender {
   lastError           String?
   pausedUntil         DateTime?
   pauseReason         String?
+
+  /// Account settings (connect flow, per-account limits, signature, tags).
+  /// GOOGLE | OUTLOOK | CUSTOM | ETHEREAL
+  provider            String    @default("ETHEREAL")
+  firstName           String    @default("")
+  lastName            String    @default("")
+  /// Campaign emails per day from this account; null = no daily limit.
+  dailyLimit          Int?
+  /// Per-account minimum gap between sends (can only raise the server-wide floor).
+  minDelayMs          Int?
+  signature           String?
+  replyTo             String?
+  tags                String[]  @default([])
+  /// Last DNS check (SPF / DKIM / DMARC / MX) and last connectivity test.
+  dnsResult           Json?
+  dnsCheckedAt        DateTime?
+  lastTestAt          DateTime?
+  lastTestOk          Boolean?
+  /// The owner has seen lastError and chosen to ignore it (clears the "needs attention" flag).
+  errorAcknowledgedAt DateTime?
+  createdAt           DateTime  @default(now())
 }
 
 /// Per-user do-not-contact list. Leads on it are skipped when a campaign is created.
@@ -112,6 +138,12 @@ model Campaign {
   skipRecentDays  Int            @default(0)
   /// Gaps between this campaign's emails vary by up to ±N% (0 = exact spacing).
   jitterPercent   Int            @default(0)
+  /// Bounce protection: pause the campaign when hard bounces exceed this % of attempts (0 = off)…
+  bounceThresholdPercent Int     @default(10)
+  /// …but only once at least this many emails have been attempted, so one early bounce can't trip it.
+  bounceMinSends  Int            @default(20)
+  /// Why the campaign is paused when it wasn't a person: BOUNCE_PROTECTION. Null = paused by hand (or not paused).
+  pauseReason     String?
   createdAt       DateTime       @default(now())
   emails          Email[]
 
@@ -140,6 +172,12 @@ model Email {
   previewUrl       String?
   sentAt           DateTime?
   failedAt         DateTime?
+  /// First ~140 characters of the body, whitespace collapsed: the grey snippet in list rows.
+  preview          String       @default("")
+  /// The owner flagged this email (star in the list and on the detail page).
+  starred          Boolean      @default(false)
+  /// Set when the recipient's server permanently rejected the address (hard bounce).
+  bouncedAt        DateTime?
   lastError        String?
   lockedAt         DateTime?
   /// When the worker handed this email to SMTP (throttle spacing is measured here, not at sentAt).

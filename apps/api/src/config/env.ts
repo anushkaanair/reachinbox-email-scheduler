@@ -42,6 +42,12 @@ const EnvSchema = z.object({
   /** How long an automatically paused sender cools down, in minutes. */
   SENDER_PAUSE_MINUTES: int(30, 1),
 
+  /**
+   * Allow connecting SMTP accounts whose host resolves to a loopback/private address. Off by default:
+   * the "connect account" form takes a user-supplied host, and this stops it probing the internal network.
+   */
+  ALLOW_PRIVATE_SMTP_HOSTS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+
   WORKER_CONCURRENCY: int(5, 1),
   MIN_DELAY_BETWEEN_EMAILS_MS: int(2000),
   MAX_EMAILS_PER_HOUR: int(200, 1),

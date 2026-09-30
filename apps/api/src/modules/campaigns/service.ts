@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
+  DEFAULT_BOUNCE_PROTECTION,
   isValidEmail,
+  makePreview,
   renderTemplate,
   spin,
+  type BounceProtection,
   type SendWindow,
   type CreateCampaignInput,
   type CreateCampaignResponse,
@@ -23,7 +26,11 @@ export type SchedulingConfig = {
 };
 
 /** Same as the validated API input, but callers (tests, scripts) may omit the defaulted fields. */
-export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent'> & { skipRecentDays?: number; jitterPercent?: number };
+export type CampaignInput = Omit<CreateCampaignInput, 'skipRecentDays' | 'jitterPercent' | 'bounceProtection'> & {
+  skipRecentDays?: number;
+  jitterPercent?: number;
+  bounceProtection?: Partial<BounceProtection>;
+};
 
 type CleanLead = { email: string; name?: string; vars: Record<string, string> };
 
@@ -140,6 +147,7 @@ export async function createCampaign(
       // Spintax first (one variant per recipient, seeded by their address), then merge tags.
       subject: renderTemplate(spin(input.subject, lead.email), vars),
       body: renderTemplate(spin(input.body, lead.email), vars),
+      preview: makePreview(renderTemplate(spin(input.body, lead.email), vars)),
       sequence: i,
       scheduledAt: at,
       nextAttemptAt: at,
@@ -158,6 +166,8 @@ export async function createCampaign(
         sendWindow: sendWindow ?? undefined,
         skipRecentDays: input.skipRecentDays ?? 0,
         jitterPercent,
+        bounceThresholdPercent: input.bounceProtection?.thresholdPercent ?? DEFAULT_BOUNCE_PROTECTION.thresholdPercent,
+        bounceMinSends: input.bounceProtection?.minSends ?? DEFAULT_BOUNCE_PROTECTION.minSends,
         hourlyLimit: input.hourlyLimit,
         totalRecipients: rows.length,
       },

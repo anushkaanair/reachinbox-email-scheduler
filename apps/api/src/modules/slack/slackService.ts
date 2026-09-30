@@ -185,6 +185,23 @@ export class SlackService {
     });
   }
 
+  notifyCampaignPaused(n: { campaignId: string; userId: string; subject: string; bounceRate: number; threshold: number; bounced: number; attempts: number }): Promise<PostResult> {
+    return this.post(n.userId, {
+      text: `⏸ Campaign paused: “${n.subject}” — ${n.bounceRate}% bounced (limit ${n.threshold}%).`,
+      blocks: [
+        { type: 'header', text: { type: 'plain_text', text: '⏸ Campaign paused to protect your senders' } },
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*Campaign*\n${n.subject.slice(0, 120)}` },
+            { type: 'mrkdwn', text: `*Bounce rate*\n${n.bounceRate}% (${n.bounced} of ${n.attempts}) — limit ${n.threshold}%` },
+          ],
+        },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Nothing was dropped. Clean the lead list, then resume the campaign from the Campaigns page.' }] },
+      ],
+    });
+  }
+
   notifyRateLimit(n: RateLimitNotice): Promise<PostResult> {
     const scopeLabel = { sender: 'Per-sender hourly limit', global: 'Global hourly limit', campaign: 'Campaign hourly limit', daily: 'Warm-up daily limit' }[n.scope];
     const resumes = new Date(n.retryAt).toUTCString().replace(' GMT', ' UTC');

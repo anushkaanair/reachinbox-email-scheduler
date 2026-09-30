@@ -59,8 +59,14 @@ export function useLiveEvents() {
       }
       if (ev.type === 'sender.paused') {
         toast.error(`Sender paused · ${ev.senderEmail}`, {
-          description: `${ev.reason} Its emails wait and resume ${formatWhen(ev.until)} (or resume it on the Senders page).`,
+          description: `${ev.reason} Its emails wait and resume ${formatWhen(ev.until)} (or resume it on the Email accounts page).`,
           duration: 10000,
+        });
+      }
+      if (ev.type === 'campaign.auto_paused') {
+        toast.error(`Campaign paused · ${ev.subject}`, {
+          description: `${ev.bounceRate}% of addresses bounced (limit ${ev.threshold}%). Nothing was dropped. Clean the list, then resume it on the Campaigns page.`,
+          duration: 12000,
         });
       }
       refresh();

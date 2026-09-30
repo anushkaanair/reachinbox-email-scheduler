@@ -28,7 +28,8 @@ import { createSlackService } from './modules/slack/index.js';
 import { slackRouter } from './modules/slack/routes.js';
 import type { SlackService } from './modules/slack/slackService.js';
 import { healthRouter } from './modules/health/routes.js';
-import { sendersRouter } from './modules/senders/routes.js';
+import { onboardingRouter } from './modules/onboarding/routes.js';
+import { sendersRouter, type SendersDeps } from './modules/senders/routes.js';
 import { BULL_BOARD_PATH, bullBoardRouter } from './queues/bullboard.js';
 import { createQueues, type QueueSet } from './queues/queues.js';
 
@@ -36,7 +37,7 @@ import { createQueues, type QueueSet } from './queues/queues.js';
  * Builds the Express app without listening, so tests can mount it with supertest.
  * `queues` is injectable so tests can isolate from a running dev worker.
  */
-export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack?: SlackService; send?: SendFn; health?: AssistantDeps['health'] } = {}) {
+export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack?: SlackService; send?: SendFn; health?: AssistantDeps['health']; senders?: SendersDeps } = {}) {
   const live = new LiveHub(() => createRedis('live-sub'));
   const limiter = new RateLimiter(redis, { prefix: '', windowMs: env.RATE_WINDOW_SECONDS * 1000, minDelayMs: env.MIN_DELAY_BETWEEN_EMAILS_MS });
   const queues = opts.queues ?? createQueues(redis);
@@ -64,6 +65,9 @@ export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack
   app.use('/healthz', healthRouter);
   app.use('/api/health', healthRouter);
   // Abuse throttling (S4): login attempts per IP, campaign creation per user.
+  app.post('/api/auth/login', requestLimit(redis, { name: 'pw-login-ip', limit: 20, windowSec: 60, key: (req) => req.ip ?? 'ip' }));
+  app.post('/api/auth/login', requestLimit(redis, { name: 'pw-login-acct', limit: 8, windowSec: 300, key: (req) => String((req.body as { email?: unknown } | undefined)?.email ?? '').toLowerCase().slice(0, 320) || 'none' }));
+  app.post('/api/auth/signup', requestLimit(redis, { name: 'pw-signup', limit: 10, windowSec: 600, key: (req) => req.ip ?? 'ip' }));
   app.use('/api/auth/google', requestLimit(redis, { name: 'login', limit: 30, windowSec: 60, key: (req) => req.ip ?? 'ip' }));
   app.post(
     '/api/campaigns',
@@ -87,7 +91,13 @@ export function createApp(opts: { queues?: QueueSet; search?: EmailSearch; slack
     analyticsRouter({ prisma, limiter, perSenderDefault: env.MAX_EMAILS_PER_HOUR_PER_SENDER, windowSeconds: env.RATE_WINDOW_SECONDS }),
   );
   app.use('/api/slack', slackRouter(slack, env.WEB_URL));
-  app.use('/api/senders', sendersRouter);
+  app.use('/api/onboarding', onboardingRouter);
+  app.post(
+    '/api/senders/:id/test',
+    requireAuth,
+    requestLimit(redis, { name: 'sender-test', limit: 10, windowSec: 60, key: (req) => req.userId ?? 'anon' }),
+  );
+  app.use('/api/senders', sendersRouter({ send: opts.send, ...opts.senders }));
   app.use(BULL_BOARD_PATH, requireAuth, requireAdmin, bullBoardRouter(queues));
 
   app.use(notFoundHandler);

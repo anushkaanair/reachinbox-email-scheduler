@@ -20,3 +20,11 @@ export const initials = (name: string) =>
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())
     .join('');
+
+/** The time inside the orange list pill: "Tue 9:15:12 AM" for the coming week, a full date beyond that. */
+export function pillWhen(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const days = Math.abs(d.getTime() - Date.now()) / 86_400_000;
+  return days < 6 ? format(d, 'EEE h:mm:ss a') : format(d, 'MMM d, h:mm a');
+}

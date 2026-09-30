@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DnsReportSchema, SenderProviderSchema } from './accounts.js';
 
 /**
  * Sender health and warm-up. A new mailbox should start slowly and send a little more each day
@@ -123,6 +124,25 @@ export const SenderDetailSchema = z.object({
     reasons: z.array(z.string()),
   }),
   stats: z.object({ sent: z.number(), failed: z.number(), deferred: z.number(), hardBounces: z.number() }),
+  provider: SenderProviderSchema,
+  firstName: z.string(),
+  lastName: z.string(),
+  /** Campaign emails per day (null = no daily limit). */
+  dailyLimit: z.number().nullable(),
+  /** Per-account override of the hourly limit, or null when the server default applies. */
+  hourlyLimitOverride: z.number().nullable(),
+  minDelaySeconds: z.number().nullable(),
+  signature: z.string().nullable(),
+  replyTo: z.string().nullable(),
+  tags: z.array(z.string()),
+  /** Hard bounces recorded today (UTC). */
+  bouncedToday: z.number(),
+  /** Number of campaigns this account has sent for. */
+  campaignCount: z.number(),
+  dns: DnsReportSchema.nullable(),
+  lastTest: z.object({ at: z.string(), ok: z.boolean() }).nullable(),
+  /** What needs the owner's attention: a login/connection error or an automatic pause. */
+  attention: z.enum(['error', 'paused']).nullable(),
   consecutiveFailures: z.number(),
   lastError: z.string().nullable(),
   pausedUntil: z.string().nullable(),

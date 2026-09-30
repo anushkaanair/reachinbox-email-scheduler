@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BounceProtectionSchema, DEFAULT_BOUNCE_PROTECTION } from './bounce.js';
 import { SendWindowSchema } from './sendWindow.js';
 import { spintaxError } from './spintax.js';
 
@@ -45,6 +46,8 @@ export const CreateCampaignInputSchema = z.object({
   /** Skip anyone this user already emailed (or scheduled) within the last N days; 0 = off. */
   skipRecentDays: z.coerce.number().int().min(0).max(365).default(0),
   jitterPercent: JitterPercentSchema,
+  /** Pause automatically when too many addresses bounce. Defaults to 10% after 20 emails; threshold 0 = off. */
+  bounceProtection: BounceProtectionSchema.default(DEFAULT_BOUNCE_PROTECTION),
 });
 export type CreateCampaignInput = z.infer<typeof CreateCampaignInputSchema>;
 

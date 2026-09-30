@@ -2,12 +2,12 @@ import { Search, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 
-/** Search input; press "/" anywhere to focus it, Esc to clear. */
+/** The pill search field from the Figma frames. Press "/" anywhere to focus it, Esc to clear. */
 export function SearchBar({
   value,
   onChange,
   loading,
-  placeholder = 'Search emails…',
+  placeholder = 'Search',
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -29,27 +29,26 @@ export function SearchBar({
   }, []);
 
   return (
-    <div className="relative w-full sm:max-w-sm">
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+    <div className="relative min-w-0 flex-1">
+      <Search className="pointer-events-none absolute top-1/2 left-4 size-[18px] -translate-y-1/2 text-muted" aria-hidden />
       <input
         ref={ref}
         type="search"
         role="searchbox"
         aria-label="Search emails"
+        aria-keyshortcuts="/"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && onChange('')}
         placeholder={placeholder}
-        className="h-9 w-full rounded-lg border border-line bg-surface pr-16 pl-9 text-sm placeholder:text-muted/70 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+        className="h-11 w-full rounded-full bg-neutral-soft pr-12 pl-11 text-sm placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-brand-600/40 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
       />
-      <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
+      <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1">
         {loading && <Spinner className="size-4 text-muted" label="Searching" />}
-        {value ? (
+        {value && (
           <button type="button" onClick={() => onChange('')} aria-label="Clear search" className="rounded p-0.5 text-muted hover:text-ink">
             <X className="size-4" />
           </button>
-        ) : (
-          <kbd className="rounded border border-line px-1.5 text-[10px] text-muted">/</kbd>
         )}
       </div>
     </div>

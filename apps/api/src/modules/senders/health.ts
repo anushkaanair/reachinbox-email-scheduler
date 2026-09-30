@@ -6,6 +6,7 @@ import {
   warmupCap,
   warmupDay,
   warmupPlan,
+  DnsReportSchema,
   type SenderDetail,
 } from '@ri/shared';
 import type { RateLimiter } from '../../throttle/rateLimiter.js';
@@ -44,11 +45,29 @@ export async function senderDetails(
 ): Promise<SenderDetail[]> {
   const now = opts.now ?? Date.now();
   const senders = await prisma.sender.findMany({ where: { isActive: true }, orderBy: { email: 'asc' } });
-  const stats = await recentStats(prisma, senders.map((s) => s.id), new Date(now - HEALTH_WINDOW_DAYS * 86_400_000));
-  return Promise.all(senders.map(async (s) => toDetail(s, stats.get(s.id)!, limiter, opts.perSenderDefault, now)));
+  const ids = senders.map((s) => s.id);
+  const stats = await recentStats(prisma, ids, new Date(now - HEALTH_WINDOW_DAYS * 86_400_000));
+  const extras = await accountExtras(prisma, ids, now);
+  return Promise.all(senders.map(async (s) => toDetail(s, stats.get(s.id)!, extras.get(s.id)!, limiter, opts.perSenderDefault, now)));
 }
 
-async function toDetail(s: Sender, st: Stat, limiter: RateLimiter, perSenderDefault: number, now: number): Promise<SenderDetail> {
+type Extras = { bouncedToday: number; campaignCount: number };
+
+/** Bounces since 00:00 UTC (the same day boundary the daily counters use) and how many campaigns used each account. */
+async function accountExtras(prisma: PrismaClient, senderIds: string[], now: number): Promise<Map<string, Extras>> {
+  const out = new Map<string, Extras>(senderIds.map((id) => [id, { bouncedToday: 0, campaignCount: 0 }]));
+  if (senderIds.length === 0) return out;
+  const dayStart = new Date(Math.floor(now / 86_400_000) * 86_400_000);
+  const [failed, campaigns] = await Promise.all([
+    prisma.email.groupBy({ by: ['senderId', 'lastError'], where: { senderId: { in: senderIds }, status: 'FAILED', updatedAt: { gte: dayStart } }, _count: { _all: true } }),
+    prisma.email.groupBy({ by: ['senderId', 'campaignId'], where: { senderId: { in: senderIds } } }),
+  ]);
+  for (const f of failed) if (f.lastError && isHardBounce(f.lastError)) out.get(f.senderId)!.bouncedToday += f._count._all;
+  for (const c of campaigns) out.get(c.senderId)!.campaignCount += 1;
+  return out;
+}
+
+async function toDetail(s: Sender, st: Stat, extra: Extras, limiter: RateLimiter, perSenderDefault: number, now: number): Promise<SenderDetail> {
   const paused = (s.pausedUntil?.getTime() ?? 0) > now;
   const settings = { start: s.warmupStart, increment: s.warmupIncrement, target: s.warmupTarget };
   const warming = s.warmupEnabled && s.warmupStartedAt !== null;
@@ -68,6 +87,20 @@ async function toDetail(s: Sender, st: Stat, limiter: RateLimiter, perSenderDefa
     displayName: s.displayName,
     isActive: s.isActive,
     hourlyLimit: s.hourlyLimit ?? perSenderDefault,
+    provider: (['GOOGLE', 'OUTLOOK', 'CUSTOM', 'ETHEREAL'].includes(s.provider) ? s.provider : 'CUSTOM') as SenderDetail['provider'],
+    firstName: s.firstName || s.displayName,
+    lastName: s.lastName,
+    dailyLimit: s.dailyLimit,
+    hourlyLimitOverride: s.hourlyLimit,
+    minDelaySeconds: s.minDelayMs === null ? null : Math.round(s.minDelayMs / 1000),
+    signature: s.signature,
+    replyTo: s.replyTo,
+    tags: s.tags,
+    bouncedToday: extra.bouncedToday,
+    campaignCount: extra.campaignCount,
+    dns: DnsReportSchema.safeParse(s.dnsResult).data ?? null,
+    lastTest: s.lastTestAt && s.lastTestOk !== null ? { at: s.lastTestAt.toISOString(), ok: s.lastTestOk } : null,
+    attention: paused ? 'paused' : s.lastError && s.consecutiveFailures > 0 ? 'error' : null,
     usedThisWindow,
     sentToday,
     health,

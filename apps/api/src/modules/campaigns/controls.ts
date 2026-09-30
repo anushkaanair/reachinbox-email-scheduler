@@ -1,6 +1,6 @@
 import type { EmailEventType, PrismaClient } from '@prisma/client';
 import type { Redis } from 'ioredis';
-import type { CampaignStatus, CampaignSummary } from '@ri/shared';
+import { bounceVerdict, type CampaignStatus, type CampaignSummary } from '@ri/shared';
 import { AppError } from '../../lib/errors.js';
 import { publishLive } from '../../lib/live.js';
 import { enqueueEmails, enqueueIndex, type QueueSet } from '../../queues/queues.js';
@@ -44,7 +44,7 @@ const conflict = (msg: string) => new AppError(409, 'CONFLICT', msg);
 export async function pauseCampaign(userId: string, id: string, deps: ControlDeps) {
   const c = await ownCampaign(deps.prisma, userId, id);
   if (c.status !== 'ACTIVE') throw conflict(`Campaign is ${c.status.toLowerCase()}`);
-  await deps.prisma.campaign.update({ where: { id }, data: { status: 'PAUSED' } });
+  await deps.prisma.campaign.update({ where: { id }, data: { status: 'PAUSED', pauseReason: null } });
   const rows = await deps.prisma.email.findMany({ where: { campaignId: id, status: { in: [...PENDING] } }, select: { id: true } });
   const ids = rows.map((r) => r.id);
   await removeJobs(deps.queues, ids);
@@ -57,7 +57,7 @@ export async function pauseCampaign(userId: string, id: string, deps: ControlDep
 export async function resumeCampaign(userId: string, id: string, deps: ControlDeps) {
   const c = await ownCampaign(deps.prisma, userId, id);
   if (c.status !== 'PAUSED') throw conflict(`Campaign is ${c.status.toLowerCase()}, not paused`);
-  await deps.prisma.campaign.update({ where: { id }, data: { status: 'ACTIVE' } });
+  await deps.prisma.campaign.update({ where: { id }, data: { status: 'ACTIVE', pauseReason: null } });
   const rows = await deps.prisma.email.findMany({
     where: { campaignId: id, status: { in: [...PENDING] } },
     select: { id: true, nextAttemptAt: true },
@@ -140,14 +140,20 @@ export async function listCampaigns(userId: string, prisma: PrismaClient): Promi
   const campaigns = await prisma.campaign.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 });
   if (campaigns.length === 0) return [];
   const ids = campaigns.map((c) => c.id);
-  const [grouped, pendingMax] = await Promise.all([
+  const [grouped, pendingMax, bounces, pendingSenders] = await Promise.all([
     prisma.email.groupBy({ by: ['campaignId', 'status'], where: { campaignId: { in: ids } }, _count: { _all: true } }),
     prisma.email.groupBy({
       by: ['campaignId'],
       where: { campaignId: { in: ids }, status: { in: [...PENDING] } },
       _max: { nextAttemptAt: true },
     }),
+    prisma.email.groupBy({ by: ['campaignId'], where: { campaignId: { in: ids }, bouncedAt: { not: null } }, _count: { _all: true } }),
+    prisma.email.groupBy({ by: ['campaignId', 'senderId'], where: { campaignId: { in: ids }, status: { in: [...PENDING] } } }),
   ]);
+  const senderIds = [...new Set(pendingSenders.map((p) => p.senderId))];
+  const senderRows = senderIds.length ? await prisma.sender.findMany({ where: { id: { in: senderIds } }, select: { id: true, isActive: true, pausedUntil: true } }) : [];
+  const senderById = new Map(senderRows.map((s) => [s.id, s]));
+  const nowMs = Date.now();
   const count = (id: string, status: string) =>
     grouped.find((g) => g.campaignId === id && g.status === status)?._count._all ?? 0;
 
@@ -162,6 +168,18 @@ export async function listCampaigns(userId: string, prisma: PrismaClient): Promi
     };
     const pending = counts.scheduled + counts.rateLimited + counts.sending;
     const status: CampaignStatus = c.status === 'ACTIVE' && pending === 0 ? 'COMPLETED' : c.status;
+    const bounced = bounces.find((b) => b.campaignId === c.id)?._count._all ?? 0;
+    const verdict = bounceVerdict({ sent: counts.sent, bounced }, { thresholdPercent: c.bounceThresholdPercent, minSends: c.bounceMinSends });
+    // Nothing will go out if every sender with waiting emails is removed or cooling down.
+    const waiting = pendingSenders.filter((p) => p.campaignId === c.id).map((p) => senderById.get(p.senderId));
+    const senderBlocked: CampaignSummary['senderBlocked'] =
+      c.status !== 'ACTIVE' || waiting.length === 0
+        ? null
+        : waiting.every((s) => !s || !s.isActive)
+          ? 'INACTIVE'
+          : waiting.every((s) => !s || !s.isActive || (s.pausedUntil?.getTime() ?? 0) > nowMs)
+            ? 'PAUSED'
+            : null;
     return {
       id: c.id,
       subject: c.subject,
@@ -173,6 +191,11 @@ export async function listCampaigns(userId: string, prisma: PrismaClient): Promi
       total: c.totalRecipients,
       counts,
       lastPendingAt: pendingMax.find((p) => p.campaignId === c.id)?._max.nextAttemptAt?.toISOString() ?? null,
+      bounced,
+      bounceRate: verdict.ratePercent === null ? null : Math.round(verdict.ratePercent * 10) / 10,
+      bounceProtection: { thresholdPercent: c.bounceThresholdPercent, minSends: c.bounceMinSends },
+      pauseReason: c.pauseReason === 'BOUNCE_PROTECTION' ? 'BOUNCE_PROTECTION' : null,
+      senderBlocked,
     };
   });
 }

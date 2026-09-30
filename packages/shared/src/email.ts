@@ -53,6 +53,9 @@ export const EmailRowSchema = z.object({
   failedAt: z.string().nullable(),
   lastError: z.string().nullable(),
   previewUrl: z.string().nullable(),
+  /** Body snippet for the list row. */
+  preview: z.string(),
+  starred: z.boolean(),
 });
 export type EmailRow = z.infer<typeof EmailRowSchema>;
 
@@ -60,6 +63,10 @@ export const ListEmailsQuerySchema = z.object({
   status: EmailTabSchema.default('scheduled'),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  /** Filter popover: only starred emails. */
+  starred: z.enum(['true']).optional(),
+  /** Filter popover on the Sent tab: only delivered, or only failed. */
+  outcome: z.enum(['SENT', 'FAILED']).optional(),
 });
 export type ListEmailsQuery = z.infer<typeof ListEmailsQuerySchema>;
 
@@ -97,6 +104,17 @@ export const EmailDetailSchema = EmailRowSchema.extend({
   events: z.array(EmailEventSchema),
 });
 export type EmailDetail = z.infer<typeof EmailDetailSchema>;
+
+export const StarUpdateSchema = z.object({ starred: z.boolean() });
+
+/** The grey snippet after the subject: whitespace collapsed, cut at a word boundary where possible. */
+export function makePreview(body: string, max = 140): string {
+  const flat = body.replace(/\s+/g, ' ').trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  const at = cut.lastIndexOf(' ');
+  return `${(at > max * 0.6 ? cut.slice(0, at) : cut).trimEnd()}…`;
+}
 
 export const EmailCountsSchema = z.object({
   scheduled: z.number(),

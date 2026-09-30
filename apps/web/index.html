@@ -17,7 +17,7 @@
         try {
           var pref = localStorage.getItem('ri-theme');
           var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var t = pref === 'light' || pref === 'dark' ? pref : dark ? 'dark' : 'light';
+          var t = pref === 'dark' ? 'dark' : pref === 'system' ? (dark ? 'dark' : 'light') : 'light';
           document.documentElement.dataset.theme = t;
           document.documentElement.style.colorScheme = t;
         } catch (e) {}

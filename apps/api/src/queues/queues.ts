@@ -17,7 +17,11 @@ export type RateLimitNotice = {
   retryAt: string;
 };
 export type SenderPausedData = { senderId: string; senderEmail: string; userId: string; until: string; reason: string };
-export type NotifyJobData = { kind: 'rate-limit'; notice: RateLimitNotice } | { kind: 'sender-paused'; notice: SenderPausedData };
+export type CampaignPausedData = { campaignId: string; userId: string; subject: string; bounceRate: number; threshold: number; bounced: number; attempts: number };
+export type NotifyJobData =
+  | { kind: 'rate-limit'; notice: RateLimitNotice }
+  | { kind: 'sender-paused'; notice: SenderPausedData }
+  | { kind: 'campaign-paused'; notice: CampaignPausedData };
 export type IndexJobData = { emailIds: string[] };
 
 export type QueueSet = {

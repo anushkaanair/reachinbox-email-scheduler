@@ -1,12 +1,13 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Router } from 'express';
 import passport from 'passport';
-import type { User } from '@ri/shared';
+import { LoginSchema, SignupSchema, type User } from '@ri/shared';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthedUser } from './google.js';
+import { decoyHash, hashPassword, verifyPassword } from './password.js';
 import {
   OAUTH_STATE_COOKIE,
   authedUserId,
@@ -53,6 +54,41 @@ authRouter.get('/google/callback', (req, res, next) => {
     setSession(res, user.id);
     res.redirect(`${env.WEB_URL}/dashboard`);
   })(req, res, next);
+});
+
+const WRONG = 'Invalid email or password';
+
+// POST /api/auth/signup { email, password, name? } — creates the account and signs in.
+authRouter.post('/signup', async (req, res, next) => {
+  try {
+    const input = SignupSchema.parse(req.body);
+    const existing = await prisma.user.findFirst({ where: { email: { equals: input.email, mode: 'insensitive' } }, select: { id: true } });
+    if (existing) throw new AppError(409, 'CONFLICT', 'An account with this email already exists. Log in, or use Google if you signed up that way.');
+    const user = await prisma.user
+      .create({ data: { email: input.email, name: input.name ?? input.email.split('@')[0]!, passwordHash: await hashPassword(input.password) }, select: { id: true } })
+      .catch((e: { code?: string }) => {
+        if (e.code === 'P2002') throw new AppError(409, 'CONFLICT', 'An account with this email already exists. Log in, or use Google if you signed up that way.'); // lost a race
+        throw e;
+      });
+    setSession(res, user.id);
+    res.status(201).json({ id: user.id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/login { email, password } — one generic failure message, and the same work whether or not the email exists.
+authRouter.post('/login', async (req, res, next) => {
+  try {
+    const input = LoginSchema.parse(req.body);
+    const user = await prisma.user.findFirst({ where: { email: { equals: input.email, mode: 'insensitive' } }, select: { id: true, passwordHash: true } });
+    const ok = await verifyPassword(input.password, user?.passwordHash ?? (await decoyHash()));
+    if (!user || !user.passwordHash || !ok) throw AppError.unauthenticated(WRONG);
+    setSession(res, user.id);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
 });
 
 authRouter.get('/me', requireAuth, async (req, res, next) => {

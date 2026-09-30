@@ -6,6 +6,7 @@ import {
   EmailTabSchema,
   ListEmailsQuerySchema,
   SearchQuerySchema,
+  StarUpdateSchema,
   type SearchResponse,
   TAB_STATUSES,
   type EmailCounts,
@@ -38,6 +39,8 @@ const rowSelect = {
   failedAt: true,
   lastError: true,
   previewUrl: true,
+  preview: true,
+  starred: true,
   sender: { select: { email: true } },
   campaign: { select: { status: true } },
 } satisfies Prisma.EmailSelect;
@@ -61,6 +64,8 @@ const toRow = (e: RowRecord): EmailRow => ({
   failedAt: iso(e.failedAt),
   lastError: e.lastError,
   previewUrl: e.previewUrl,
+  preview: e.preview,
+  starred: e.starred,
 });
 
 // GET /api/emails?status=scheduled|sent&cursor=&limit= — tenant-scoped, cursor-paginated.
@@ -73,7 +78,11 @@ router.get('/', async (req, res, next) => {
         : [{ updatedAt: 'desc' }, { id: 'desc' }];
 
     const rows = await prisma.email.findMany({
-      where: { userId: authedUserId(req), status: { in: [...TAB_STATUSES[q.status]] } },
+      where: {
+        userId: authedUserId(req),
+        status: q.outcome && q.status === 'sent' ? q.outcome : { in: [...TAB_STATUSES[q.status]] },
+        ...(q.starred ? { starred: true } : {}),
+      },
       orderBy,
       take: q.limit + 1,
       ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
@@ -227,6 +236,17 @@ export function emailsRouter(search: EmailSearch, controls: ControlDeps) {
     try {
       const act = req.params.action === 'retry' ? retryEmail : cancelEmail;
       await act(authedUserId(req), req.params.id!, controls);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+  // PUT /api/emails/:id/star { starred } — tenant-scoped flag; another user's id is a 404.
+  r.put('/:id([0-9a-fA-F-]{36})/star', requireAuth, async (req, res, next) => {
+    try {
+      const { starred } = StarUpdateSchema.parse(req.body);
+      const done = await prisma.email.updateMany({ where: { id: req.params.id!, userId: authedUserId(req) }, data: { starred } });
+      if (done.count === 0) throw AppError.notFound('Email not found');
       res.status(204).end();
     } catch (err) {
       next(err);

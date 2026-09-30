@@ -53,6 +53,11 @@ async function main() {
         await publishLive(redis, n.userId, { type: 'sender.paused', senderEmail: n.senderEmail, until: n.until, reason: n.reason });
         await queues.notify.add('sender-paused', { kind: 'sender-paused', notice: n });
       },
+      onCampaignPaused: async (n) => {
+        await publishLive(redis, n.userId, { type: 'campaign.auto_paused', campaignId: n.campaignId, subject: n.subject, bounceRate: n.bounceRate, threshold: n.threshold });
+        await publishLive(redis, n.userId, { type: 'campaign.updated', campaignId: n.campaignId, status: 'PAUSED' });
+        await queues.notify.add('campaign-paused', { kind: 'campaign-paused', notice: n });
+      },
       onEmailChanged: async (id, c) => {
         await enqueueIndex(queues.index, [id]);
         await publishLive(redis, c.userId, { type: 'email.updated', emailId: id, campaignId: c.campaignId, status: c.status });
@@ -66,6 +71,11 @@ async function main() {
       if (job.kind === 'sender-paused') {
         const result = await slack.notifySenderPaused(job.notice);
         logger.info({ result, sender: job.notice.senderEmail }, 'sender-paused notice');
+        return;
+      }
+      if (job.kind === 'campaign-paused') {
+        const result = await slack.notifyCampaignPaused(job.notice);
+        logger.info({ result, campaignId: job.notice.campaignId }, 'campaign-paused notice');
         return;
       }
       const { notice } = job;

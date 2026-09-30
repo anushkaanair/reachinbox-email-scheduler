@@ -15,3 +15,6 @@ export const logout = () => api('/auth/logout', { method: 'POST' });
 
 /** Full-page navigation: OAuth needs real redirects, not XHR. */
 export const GOOGLE_LOGIN_URL = '/api/auth/google';
+
+export const loginWithPassword = (body: { email: string; password: string }) => api('/auth/login', { method: 'POST', body });
+export const signupWithPassword = (body: { email: string; password: string; name?: string }) => api('/auth/signup', { method: 'POST', body });

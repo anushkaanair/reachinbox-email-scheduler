@@ -7,9 +7,10 @@ const KEY = 'ri-theme';
 export function readThemePref(): ThemePref {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' || v === 'system' ? v : 'system';
+    // The Figma design is light, so that is the default; dark and "follow my system" are opt-in.
+    return v === 'light' || v === 'dark' || v === 'system' ? v : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 

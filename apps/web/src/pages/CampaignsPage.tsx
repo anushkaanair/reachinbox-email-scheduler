@@ -48,6 +48,7 @@ function CampaignCard({
           <div className="flex items-center gap-2">
             <h2 className="truncate text-base font-semibold">{c.subject}</h2>
             <Badge tone={s.tone}>{s.label}</Badge>
+            {c.pauseReason === 'BOUNCE_PROTECTION' && <Badge tone="danger">Paused: bounce protection</Badge>}
           </div>
           <p className="mt-0.5 text-xs text-muted">
             Created {relative(c.createdAt)} · starts {formatWhen(c.startAt)} · every {c.delayBetweenMs / 1000}s · max{' '}
@@ -94,10 +95,30 @@ function CampaignCard({
         </div>
       </div>
 
+      {c.pauseReason === 'BOUNCE_PROTECTION' && c.status === 'PAUSED' && (
+        <p role="alert" className="mt-3 flex items-start gap-2 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            {c.bounceRate}% of addresses bounced (limit {c.bounceProtection.thresholdPercent}%), so this campaign paused itself to protect your senders. Nothing was dropped. Clean the list, then resume.
+          </span>
+        </p>
+      )}
+      {c.senderBlocked && (
+        <p role="status" className="mt-3 flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            {c.senderBlocked === 'PAUSED'
+              ? 'Every sender with waiting emails is paused, so nothing goes out until one resumes (see Email accounts).'
+              : 'The accounts these emails were assigned to were removed, so nothing will go out.'}
+          </span>
+        </p>
+      )}
+
       <div className="mt-4 flex items-baseline justify-between text-sm">
         <span>
           <span className="font-semibold tabular-nums">{nf.format(done)}</span>
           <span className="text-muted"> / {nf.format(c.total)} processed</span>
+          {c.bounced > 0 && <span className="ml-3 text-xs text-muted">{nf.format(c.bounced)} bounced{c.bounceRate !== null ? ` (${c.bounceRate}%)` : ''}</span>}
         </span>
         {c.lastPendingAt && c.status === 'ACTIVE' && (
           <span className="text-xs text-muted">Finishes ≈ {formatWhen(c.lastPendingAt)}</span>

@@ -41,13 +41,18 @@ export const messageIdFor = (emailId: string) => `<${emailId}@reachinbox.local>`
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+/** The account's signature goes under the message, separated the way mail clients expect. */
+export const withSignature = (body: string, signature: string | null) => (signature?.trim() ? `${body}\n\n-- \n${signature.trim()}` : body);
+
 export const sendViaSmtp: SendFn = async (sender, email) => {
+  const text = withSignature(email.body, sender.signature);
   const info = await transportFor(sender).sendMail({
     from: { name: sender.displayName, address: sender.email },
+    ...(sender.replyTo ? { replyTo: sender.replyTo } : {}),
     to: email.toName ? { name: email.toName, address: email.to } : email.to,
     subject: email.subject,
-    text: email.body,
-    html: `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(email.body)}</div>`,
+    text,
+    html: `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(text)}</div>`,
     messageId: messageIdFor(email.emailId),
     headers: { 'X-ReachInbox-Email-Id': email.emailId },
   });

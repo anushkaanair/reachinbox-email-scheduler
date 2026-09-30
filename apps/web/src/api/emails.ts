@@ -6,10 +6,16 @@ import {
 } from '@ri/shared';
 import { api } from './client';
 
-export function listEmails(tab: EmailTab, cursor?: string, signal?: AbortSignal) {
+export type EmailFilters = { starred?: boolean; outcome?: 'SENT' | 'FAILED' };
+
+export function listEmails(tab: EmailTab, cursor?: string, signal?: AbortSignal, filters: EmailFilters = {}) {
   const qs = new URLSearchParams({ status: tab, limit: '50' });
   if (cursor) qs.set('cursor', cursor);
+  if (filters.starred) qs.set('starred', 'true');
+  if (filters.outcome && tab === 'sent') qs.set('outcome', filters.outcome);
   return api<ListEmailsResponse>(`/emails?${qs}`, { schema: ListEmailsResponseSchema, signal });
 }
 
 export const fetchEmailCounts = () => api('/emails/counts', { schema: EmailCountsSchema });
+
+export const starEmail = (id: string, starred: boolean) => api(`/emails/${id}/star`, { method: 'PUT', body: { starred } });

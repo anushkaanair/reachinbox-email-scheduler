@@ -176,6 +176,8 @@ model Email {
   preview          String       @default("")
   /// The owner flagged this email (star in the list and on the detail page).
   starred          Boolean      @default(false)
+  /// Tucked away from the lists (finished emails only). Kept, and reachable via the Archived filter.
+  archived         Boolean      @default(false)
   /// Set when the recipient's server permanently rejected the address (hard bounce).
   bouncedAt        DateTime?
   lastError        String?

@@ -1,6 +1,8 @@
 import {
   AlertOctagon,
   ArrowLeft,
+  Archive,
+  ArchiveRestore,
   Ban,
   CalendarClock,
   CheckCircle2,
@@ -24,6 +26,7 @@ import { StarButton, StatusPill } from '@/components/email/EmailList';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useArchive } from '@/hooks/useEmails';
 import { useEmailAction, useEmailDetail } from '@/hooks/useInsights';
 import { cn } from '@/lib/cn';
 import { formatWhen } from '@/lib/format';
@@ -122,10 +125,14 @@ export function EmailDetailPage() {
   const navigate = useNavigate();
   const { data: e, isPending, error } = useEmailDetail(id ?? null);
   const action = useEmailAction();
+  const archive = useArchive();
   const { askAbout } = useAssistant();
 
   const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/dashboard'));
   const pending = e && (e.status === 'SCHEDULED' || e.status === 'RATE_LIMITED');
+  const finished = e && (e.status === 'SENT' || e.status === 'FAILED' || e.status === 'CANCELLED');
+  const toggleArchive = () =>
+    archive.mutate({ id: e!.id, archived: !e!.archived }, { onSuccess: () => toast(e!.archived ? 'Moved back to the list' : 'Archived'), onError: (err) => toast.error(err.message) });
   const run = (a: 'retry' | 'cancel') =>
     action.mutate({ id: e!.id, action: a }, { onSuccess: () => { toast.success(a === 'retry' ? 'Email re-queued' : 'Email cancelled'); if (a === 'cancel') back(); } });
 
@@ -141,6 +148,11 @@ export function EmailDetailPage() {
         {e && (
           <div className="flex shrink-0 items-center gap-1">
             <StarButton id={e.id} starred={e.starred} />
+            {finished && (
+              <button type="button" onClick={toggleArchive} disabled={archive.isPending} aria-label={e.archived ? 'Move back to the list' : 'Archive this email'} title={e.archived ? 'Unarchive' : 'Archive'} className="rounded-md p-1.5 text-muted hover:bg-neutral-soft hover:text-ink disabled:opacity-60">
+                {e.archived ? <ArchiveRestore className="size-[18px]" aria-hidden /> : <Archive className="size-[18px]" aria-hidden />}
+              </button>
+            )}
             {pending && (
               <button type="button" onClick={() => run('cancel')} disabled={action.isPending} aria-label="Cancel this email" title="Cancel this email" className="rounded-md p-1.5 text-muted hover:bg-neutral-soft hover:text-danger disabled:opacity-60">
                 <Trash2 className="size-[18px]" aria-hidden />

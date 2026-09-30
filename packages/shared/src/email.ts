@@ -56,6 +56,7 @@ export const EmailRowSchema = z.object({
   /** Body snippet for the list row. */
   preview: z.string(),
   starred: z.boolean(),
+  archived: z.boolean(),
 });
 export type EmailRow = z.infer<typeof EmailRowSchema>;
 
@@ -65,6 +66,8 @@ export const ListEmailsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   /** Filter popover: only starred emails. */
   starred: z.enum(['true']).optional(),
+  /** Show the archive instead of the normal list. */
+  archived: z.enum(['true']).optional(),
   /** Filter popover on the Sent tab: only delivered, or only failed. */
   outcome: z.enum(['SENT', 'FAILED']).optional(),
 });
@@ -106,6 +109,7 @@ export const EmailDetailSchema = EmailRowSchema.extend({
 export type EmailDetail = z.infer<typeof EmailDetailSchema>;
 
 export const StarUpdateSchema = z.object({ starred: z.boolean() });
+export const ArchiveUpdateSchema = z.object({ archived: z.boolean() });
 
 /** The grey snippet after the subject: whitespace collapsed, cut at a word boundary where possible. */
 export function makePreview(body: string, max = 140): string {

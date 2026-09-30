@@ -7,6 +7,7 @@ import {
   ListEmailsQuerySchema,
   SearchQuerySchema,
   StarUpdateSchema,
+  ArchiveUpdateSchema,
   type SearchResponse,
   TAB_STATUSES,
   type EmailCounts,
@@ -41,6 +42,7 @@ const rowSelect = {
   previewUrl: true,
   preview: true,
   starred: true,
+  archived: true,
   sender: { select: { email: true } },
   campaign: { select: { status: true } },
 } satisfies Prisma.EmailSelect;
@@ -66,6 +68,7 @@ const toRow = (e: RowRecord): EmailRow => ({
   previewUrl: e.previewUrl,
   preview: e.preview,
   starred: e.starred,
+  archived: e.archived,
 });
 
 // GET /api/emails?status=scheduled|sent&cursor=&limit= — tenant-scoped, cursor-paginated.
@@ -82,6 +85,7 @@ router.get('/', async (req, res, next) => {
         userId: authedUserId(req),
         status: q.outcome && q.status === 'sent' ? q.outcome : { in: [...TAB_STATUSES[q.status]] },
         ...(q.starred ? { starred: true } : {}),
+        archived: q.archived === 'true',
       },
       orderBy,
       take: q.limit + 1,
@@ -208,7 +212,7 @@ router.get('/counts', async (req, res, next) => {
   try {
     const grouped = await prisma.email.groupBy({
       by: ['status'],
-      where: { userId: authedUserId(req) },
+      where: { userId: authedUserId(req), archived: false },
       _count: { _all: true },
     });
     const n = (statuses: readonly string[]) =>
@@ -247,6 +251,23 @@ export function emailsRouter(search: EmailSearch, controls: ControlDeps) {
       const { starred } = StarUpdateSchema.parse(req.body);
       const done = await prisma.email.updateMany({ where: { id: req.params.id!, userId: authedUserId(req) }, data: { starred } });
       if (done.count === 0) throw AppError.notFound('Email not found');
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+  // PUT /api/emails/:id/archive { archived } — only finished emails (sent / failed / cancelled) can be archived.
+  r.put('/:id([0-9a-fA-F-]{36})/archive', requireAuth, async (req, res, next) => {
+    try {
+      const { archived } = ArchiveUpdateSchema.parse(req.body);
+      const done = await prisma.email.updateMany({
+        where: { id: req.params.id!, userId: authedUserId(req), ...(archived ? { status: { in: ['SENT', 'FAILED', 'CANCELLED'] } } : {}) },
+        data: { archived },
+      });
+      if (done.count === 0) {
+        const exists = await prisma.email.count({ where: { id: req.params.id!, userId: authedUserId(req) } });
+        throw exists ? new AppError(409, 'CONFLICT', 'Only finished emails can be archived') : AppError.notFound('Email not found');
+      }
       res.status(204).end();
     } catch (err) {
       next(err);

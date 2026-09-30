@@ -28,15 +28,16 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
 
   const [starred, setStarred] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>(undefined);
-  const filters = useMemo(() => ({ starred: starred || undefined, outcome }), [starred, outcome]);
-  const active = (starred ? 1 : 0) + (outcome ? 1 : 0);
+  const [archived, setArchived] = useState(false);
+  const filters = useMemo(() => ({ starred: starred || undefined, outcome, archived: archived || undefined }), [starred, outcome, archived]);
+  const active = (starred ? 1 : 0) + (outcome ? 1 : 0) + (archived ? 1 : 0);
 
   const list = useEmails(tab, filters);
   const search = useEmailSearch(debounced, tab);
 
   const searchRows = useMemo(
-    () => (search.data?.items ?? []).filter((r) => (!starred || r.starred) && (!outcome || r.status === outcome)),
-    [search.data, starred, outcome],
+    () => (search.data?.items ?? []).filter((r) => (!starred || r.starred) && (!outcome || r.status === outcome) && r.archived === archived),
+    [search.data, starred, outcome, archived],
   );
 
   if (legacyOpen) return <Navigate to={`/email/${legacyOpen}`} replace />;
@@ -57,6 +58,11 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
           <MenuItem onSelect={() => setStarred((s) => !s)} icon={starred ? <Check className="size-4 text-brand-700" aria-hidden /> : <span className="size-4" />}>
             Starred only
           </MenuItem>
+          {tab === 'sent' && (
+            <MenuItem onSelect={() => setArchived((a) => !a)} icon={archived ? <Check className="size-4 text-brand-700" aria-hidden /> : <span className="size-4" />}>
+              Archived
+            </MenuItem>
+          )}
           {tab === 'sent' &&
             (['SENT', 'FAILED'] as const).map((o) => (
               <MenuItem key={o} onSelect={() => setOutcome((cur) => (cur === o ? undefined : o))} icon={outcome === o ? <Check className="size-4 text-brand-700" aria-hidden /> : <span className="size-4" />}>
@@ -64,7 +70,7 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
               </MenuItem>
             ))}
           {active > 0 && (
-            <MenuItem onSelect={() => { setStarred(false); setOutcome(undefined); }} icon={<span className="size-4" />}>
+            <MenuItem onSelect={() => { setStarred(false); setOutcome(undefined); setArchived(false); }} icon={<span className="size-4" />}>
               Clear filters
             </MenuItem>
           )}

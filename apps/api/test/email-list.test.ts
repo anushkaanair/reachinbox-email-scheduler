@@ -116,4 +116,27 @@ describe('email list: preview, star and filters', () => {
     const scheduled = (await as(userId).get('/api/emails?status=scheduled&outcome=FAILED&limit=100')).body.items as { id: string }[];
     expect(scheduled.map((r) => r.id)).not.toContain(rows[1]!.id);
   });
+  it('archives finished emails only; they leave the list and the counts, and come back when unarchived', async () => {
+    const { rows } = await seed(3);
+    const [sent, pendingRow] = [rows[0]!, rows[1]!];
+    await prisma.email.update({ where: { id: sent.id }, data: { status: 'SENT', sentAt: new Date() } });
+    const count = async () => (await as(userId).get('/api/emails/counts')).body as { scheduled: number; sent: number };
+    const ids = async (q: string) => ((await as(userId).get(`/api/emails?limit=100${q}`)).body.items as { id: string }[]).map((r) => r.id);
+    const before = await count();
+
+    expect((await as(userId).put(`/api/emails/${pendingRow.id}/archive`, { archived: true })).status).toBe(409); // still waiting to send
+    expect((await as(otherId).put(`/api/emails/${sent.id}/archive`, { archived: true })).status).toBe(404); // not theirs
+    expect((await as(userId).put(`/api/emails/${randomUUID()}/archive`, { archived: true })).status).toBe(404);
+    expect((await as(userId).put(`/api/emails/${sent.id}/archive`, { archived: 'yes' })).status).toBe(400);
+
+    expect((await as(userId).put(`/api/emails/${sent.id}/archive`, { archived: true })).status).toBe(204);
+    expect(await ids('&status=sent')).not.toContain(sent.id);
+    expect(await ids('&status=sent&archived=true')).toContain(sent.id);
+    expect((await as(userId).get(`/api/emails/${sent.id}`)).body.archived).toBe(true);
+    expect((await count()).sent).toBe(before.sent - 1);
+
+    expect((await as(userId).put(`/api/emails/${sent.id}/archive`, { archived: false })).status).toBe(204);
+    expect(await ids('&status=sent')).toContain(sent.id);
+    expect((await count()).sent).toBe(before.sent);
+  });
 });

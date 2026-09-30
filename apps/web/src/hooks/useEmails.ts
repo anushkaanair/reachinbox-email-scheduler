@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EmailTab } from '@ri/shared';
-import { fetchEmailCounts, listEmails, starEmail, type EmailFilters } from '@/api/emails';
+import { archiveEmail, fetchEmailCounts, listEmails, starEmail, type EmailFilters } from '@/api/emails';
 import { livePollInterval } from './useLiveEvents';
 
 export const emailKeys = {
@@ -30,6 +30,15 @@ export function useStar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, starred }: { id: string; starred: boolean }) => starEmail(id, starred),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['emails'] }),
+  });
+}
+
+/** Archive / unarchive a finished email. */
+export function useArchive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) => archiveEmail(id, archived),
     onSettled: () => void qc.invalidateQueries({ queryKey: ['emails'] }),
   });
 }

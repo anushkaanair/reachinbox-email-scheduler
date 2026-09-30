@@ -79,3 +79,11 @@ export function recipientsFromLeads(leads: Lead[]): Recipients {
   for (const l of leads) for (const k of Object.keys(l.vars ?? {})) tags.add(k);
   return { leads, tags: [...tags], invalid: [], duplicates: 0, truncated: false, fileName: null };
 }
+
+/** Merge leads from elsewhere (a saved list) into the current recipients, dropping repeats. */
+export function addLeads(cur: Recipients, leads: Lead[]): Recipients {
+  const m = merge(cur, leads);
+  const tags = new Set(cur.tags);
+  for (const l of leads) for (const k of Object.keys(l.vars ?? {})) tags.add(k);
+  return { ...cur, leads: m.leads, tags: [...tags], duplicates: cur.duplicates + m.duplicates, truncated: cur.truncated || m.truncated };
+}

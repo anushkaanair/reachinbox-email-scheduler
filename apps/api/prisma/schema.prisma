@@ -26,6 +26,7 @@ model User {
   assistantActions AssistantAction[]
   attachments      Attachment[]
   drafts           Draft[]
+  leadLists        LeadList[]
   /// First-run onboarding answers, tour progress and checklist state (see shared/onboarding.ts). Null = not seen yet.
   onboarding       Json?
 }
@@ -134,6 +135,37 @@ model Draft {
   createdAt DateTime @default(now())
 
   @@index([userId, updatedAt])
+}
+
+/// A saved, reusable list of recipients, optionally checked for deliverability (see shared/leads.ts for what a check means).
+model LeadList {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  leads     ListLead[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model ListLead {
+  id         String    @id @default(cuid())
+  listId     String
+  list       LeadList  @relation(fields: [listId], references: [id], onDelete: Cascade)
+  email      String
+  name       String?
+  vars       Json?
+  /// VALID | RISKY | UNDELIVERABLE | UNKNOWN; null = not checked yet.
+  status     String?
+  reason     String?
+  suggestion String?
+  checkedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([listId, email])
+  @@index([listId, status])
 }
 
 model Campaign {

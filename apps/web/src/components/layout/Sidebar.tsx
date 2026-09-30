@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, Compass, Layers, Mailbox, Send, Settings } from 'lucide-react';
+import { BarChart3, CalendarClock, Compass, Layers, ListChecks, Mailbox, Send, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { buttonClass } from '@/components/ui/Button';
@@ -36,6 +36,7 @@ export function Sidebar() {
       count: setup && !setup.progress.complete ? `${setup.progress.done}/${setup.progress.total}` : undefined,
     },
     { to: '/campaigns', label: 'Campaigns', icon: Layers },
+    { to: '/lead-lists', label: 'Lead lists', icon: ListChecks },
     { to: '/analytics', label: 'Analytics', icon: BarChart3 },
     { to: '/senders', label: 'Email accounts', icon: Mailbox },
   ];

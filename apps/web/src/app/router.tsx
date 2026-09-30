@@ -11,6 +11,8 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { Spinner } from '@/components/ui/Spinner';
 
 // Heavy pages (charts; the composer with CSV parsing, forms and forecast) load on demand.
+const LeadListsPage = lazy(() => import('@/pages/LeadListsPage').then((m) => ({ default: m.LeadListsPage })));
+const LeadListDetailPage = lazy(() => import('@/pages/LeadListDetailPage').then((m) => ({ default: m.LeadListDetailPage })));
 const EmailDetailPage = lazy(() => import('@/pages/EmailDetailPage').then((m) => ({ default: m.EmailDetailPage })));
 const GettingStartedPage = lazy(() => import('@/pages/GettingStartedPage').then((m) => ({ default: m.GettingStartedPage })));
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
@@ -39,6 +41,8 @@ export function AppRouter() {
           <Route path="/onboarding" element={<Suspense fallback={pageFallback}><OnboardingPage /></Suspense>} />
           <Route element={<DashboardLayout />}>
             <Route path="/getting-started" element={<Suspense fallback={pageFallback}><GettingStartedPage /></Suspense>} />
+            <Route path="/lead-lists" element={<Suspense fallback={pageFallback}><LeadListsPage /></Suspense>} />
+            <Route path="/lead-lists/:id" element={<Suspense fallback={pageFallback}><LeadListDetailPage /></Suspense>} />
             <Route path="/email/:id" element={<Suspense fallback={pageFallback}><EmailDetailPage /></Suspense>} />
             <Route path="/dashboard" element={<Navigate to="/dashboard/scheduled" replace />} />
             <Route path="/dashboard/scheduled" element={<ScheduledPage />} />

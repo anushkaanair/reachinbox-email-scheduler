@@ -72,6 +72,7 @@ export function Header() {
           ['/dashboard/scheduled', 'Scheduled'],
           ['/dashboard/sent', 'Sent'],
           ['/campaigns', 'Campaigns'],
+          ['/lead-lists', 'Lead lists'],
           ['/analytics', 'Analytics'],
           ['/senders', 'Email accounts'],
           ['/settings', 'Settings'],

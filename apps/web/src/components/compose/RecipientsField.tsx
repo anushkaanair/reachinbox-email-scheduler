@@ -12,7 +12,7 @@ const nf = new Intl.NumberFormat();
  * and an "Upload List" action. Typed and uploaded addresses merge into one deduplicated list, and the
  * summary underneath says exactly how many addresses were detected.
  */
-export function RecipientsField({ value, onChange, error }: { value: Recipients; onChange: (v: Recipients) => void; error?: string }) {
+export function RecipientsField({ value, onChange, error, extra }: { value: Recipients; onChange: (v: Recipients) => void; error?: string; extra?: React.ReactNode }) {
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -121,6 +121,7 @@ export function RecipientsField({ value, onChange, error }: { value: Recipients;
         {value.leads.length > 0 && (
           <button type="button" onClick={() => { onChange(EMPTY_RECIPIENTS); setNote(null); }} className="text-muted hover:text-ink">Clear all</button>
         )}
+        {extra}
       </div>
       {message && <p role="alert" className="mt-1 text-xs text-danger">{message}</p>}
     </div>

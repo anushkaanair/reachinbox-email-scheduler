@@ -12,6 +12,8 @@ import { ForecastCard } from '@/components/compose/ForecastCard';
 import { AttachButton, AttachmentList, useAttachments } from '@/components/compose/Attachments';
 import { RecipientsField } from '@/components/compose/RecipientsField';
 import { RichTextEditor, type RichTextHandle } from '@/components/compose/RichTextEditor';
+import { SavedLists } from '@/components/compose/SavedLists';
+import { loadListRecipients } from '@/hooks/useLeadLists';
 import { SendLater } from '@/components/compose/SendLater';
 import { PreviewCard } from '@/components/compose/PreviewCard';
 import { SendingRules, defaultRules, hoursError, rulesToBounceProtection, rulesToSendWindow, type Rules } from '@/components/compose/SendingRules';
@@ -22,7 +24,7 @@ import { useScheduleCampaign, useSenders } from '@/hooks/useCampaigns';
 import { useDeleteDraft, useDraft, useSaveDraft } from '@/hooks/useDrafts';
 import { useDebounced } from '@/hooks/useIntegrations';
 import { formatWhen } from '@/lib/format';
-import { EMPTY_RECIPIENTS, recipientsFromLeads, type Recipients } from '@/lib/recipients';
+import { EMPTY_RECIPIENTS, addLeads, recipientsFromLeads, type Recipients } from '@/lib/recipients';
 import { estimateFinish, toLocalInput } from '@/lib/schedule';
 
 const spintaxRefine = (v: string, ctx: z.RefinementCtx) => {
@@ -74,6 +76,7 @@ export function ComposePage() {
   const [urlParams] = useSearchParams();
   const [draftId, setDraftId] = useState<string | null>(urlParams.get('draft'));
   const loadedDraft = useRef<string | null>(null);
+  const loadedList = useRef<string | null>(null);
   const draft = useDraft(urlParams.get('draft'));
   const saveDraft = useSaveDraft();
   const removeDraft = useDeleteDraft();
@@ -175,6 +178,21 @@ export function ComposePage() {
     if (p.rules) setRules({ ...defaultRules(), ...p.rules });
     setDraftId(d.id);
   }, [draft.data, form]);
+
+  // "Use in a campaign" from a lead list arrives as ?list=<id>: fill the recipients (undeliverable ones are left out).
+  const listParam = urlParams.get('list');
+  useEffect(() => {
+    if (!listParam || loadedList.current === listParam) return;
+    loadedList.current = listParam;
+    loadListRecipients(listParam).then(
+      (leads) => {
+        setRecipients((cur) => addLeads(cur, leads));
+        setLeadsKey(crypto.randomUUID());
+        toast.success(`Loaded ${leads.length.toLocaleString('en-US')} address${leads.length === 1 ? '' : 'es'} from your list`, { description: 'Any the check found undeliverable were left out.' });
+      },
+      (e: unknown) => toast.error(e instanceof Error ? e.message : 'Couldn’t load that list'),
+    );
+  }, [listParam]);
 
   const snapshot = (): DraftPayload => ({
     senderId,
@@ -309,6 +327,7 @@ export function ComposePage() {
                 value={recipients}
                 onChange={(v) => { setRecipients(v); setLeadsKey(crypto.randomUUID()); setLeadsError(undefined); }}
                 error={leadsError}
+                extra={<SavedLists leads={recipients.leads} onLoad={(leads, name) => { setRecipients((cur) => addLeads(cur, leads)); setLeadsKey(crypto.randomUUID()); setLeadsError(undefined); toast.success(`Added “${name}”`); }} />}
               />
             </Row>
 

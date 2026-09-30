@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_RECIPIENTS, addFile, addTyped, recipientsFromLeads, removeLead } from './recipients';
+import { EMPTY_RECIPIENTS, addFile, addLeads, addTyped, recipientsFromLeads, removeLead } from './recipients';
 
 const file = (name: string, text: string, size = text.length) => Object.defineProperty(new File([text], name), 'size', { value: size });
 
@@ -50,5 +50,15 @@ describe('recipientsFromLeads', () => {
     expect(r.leads).toHaveLength(2);
     expect(r.tags).toEqual(['email', 'name', 'company', 'role']);
     expect(r).toMatchObject({ invalid: [], duplicates: 0, truncated: false, fileName: null });
+  });
+});
+
+describe('addLeads', () => {
+  it('merges a saved list in, skipping addresses already there and learning its merge tags', () => {
+    const cur = addTyped(EMPTY_RECIPIENTS, 'a@x.dev').next;
+    const r = addLeads(cur, [{ email: 'a@x.dev' }, { email: 'b@x.dev', vars: { company: 'Acme' } }]);
+    expect(r.leads.map((l) => l.email)).toEqual(['a@x.dev', 'b@x.dev']);
+    expect(r.duplicates).toBe(1);
+    expect(r.tags).toContain('company');
   });
 });

@@ -77,6 +77,7 @@ export function Header() {
           ['/dashboard/sent', 'Sent'],
           ['/campaigns', 'Campaigns'],
           ['/analytics', 'Analytics'],
+          ['/senders', 'Senders'],
           ['/settings', 'Settings'],
         ].map(([to, label]) => (
           <NavLink

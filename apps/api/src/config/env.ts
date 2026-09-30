@@ -35,6 +35,13 @@ const EnvSchema = z.object({
   /** Comma-separated emails allowed to open Bull Board; empty = any signed-in user (dev). */
   ADMIN_EMAILS: z.string().optional(),
 
+  /** Length of one warm-up "day" in seconds (86400; shorten in demo mode to watch the ramp). */
+  WARMUP_DAY_SECONDS: int(86_400, 60),
+  /** Pause a sender after this many failed sends in a row (circuit breaker). */
+  SENDER_PAUSE_AFTER_FAILURES: int(5, 1),
+  /** How long an automatically paused sender cools down, in minutes. */
+  SENDER_PAUSE_MINUTES: int(30, 1),
+
   WORKER_CONCURRENCY: int(5, 1),
   MIN_DELAY_BETWEEN_EMAILS_MS: int(2000),
   MAX_EMAILS_PER_HOUR: int(200, 1),

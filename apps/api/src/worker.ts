@@ -24,6 +24,7 @@ async function main() {
     prefix: '',
     windowMs: env.RATE_WINDOW_SECONDS * 1000,
     minDelayMs: env.MIN_DELAY_BETWEEN_EMAILS_MS,
+    dayMs: env.WARMUP_DAY_SECONDS * 1000,
   });
 
   const search = new EmailSearch(es, prisma, env.ES_INDEX);
@@ -44,8 +45,14 @@ async function main() {
         maxPerWindowGlobal: env.MAX_EMAILS_PER_HOUR,
         maxPerWindowPerSender: env.MAX_EMAILS_PER_HOUR_PER_SENDER,
         staleSendingMs: env.STALE_SENDING_MS,
+        pauseAfterFailures: env.SENDER_PAUSE_AFTER_FAILURES,
+        pauseMs: env.SENDER_PAUSE_MINUTES * 60_000,
       },
       onRateLimited: rateLimitRecorder(prisma, queues, redis),
+      onSenderPaused: async (n) => {
+        await publishLive(redis, n.userId, { type: 'sender.paused', senderEmail: n.senderEmail, until: n.until, reason: n.reason });
+        await queues.notify.add('sender-paused', { kind: 'sender-paused', notice: n });
+      },
       onEmailChanged: async (id, c) => {
         await enqueueIndex(queues.index, [id]);
         await publishLive(redis, c.userId, { type: 'email.updated', emailId: id, campaignId: c.campaignId, status: c.status });
@@ -55,7 +62,13 @@ async function main() {
 
   const notifyWorker = startNotifyWorker(
     { connection: createRedis('notify-worker'), prefix: DEFAULT_PREFIX },
-    async ({ notice }) => {
+    async (job) => {
+      if (job.kind === 'sender-paused') {
+        const result = await slack.notifySenderPaused(job.notice);
+        logger.info({ result, sender: job.notice.senderEmail }, 'sender-paused notice');
+        return;
+      }
+      const { notice } = job;
       const result = await slack.notifyRateLimit(notice);
       if (result === 'sent') {
         await prisma.rateLimitEvent.updateMany({

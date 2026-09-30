@@ -11,6 +11,9 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { Spinner } from '@/components/ui/Spinner';
 
 // Heavy pages (charts; the composer with CSV parsing, forms and forecast) load on demand.
+const SendersPage = lazy(() =>
+  import('@/pages/SendersPage').then((m) => ({ default: m.SendersPage })),
+);
 const ComposePage = lazy(() =>
   import('@/pages/ComposePage').then((m) => ({ default: m.ComposePage })),
 );
@@ -43,6 +46,14 @@ export function AppRouter() {
               }
             />
             <Route path="/campaigns" element={<CampaignsPage />} />
+            <Route
+              path="/senders"
+              element={
+                <Suspense fallback={pageFallback}>
+                  <SendersPage />
+                </Suspense>
+              }
+            />
             <Route
               path="/analytics"
               element={

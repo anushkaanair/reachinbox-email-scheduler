@@ -166,8 +166,27 @@ export class SlackService {
     });
   }
 
+  notifySenderPaused(n: { senderEmail: string; userId: string; until: string; reason: string }): Promise<PostResult> {
+    const until = new Date(n.until).toUTCString().replace(' GMT', ' UTC');
+    return this.post(n.userId, {
+      text: `⏸ Sender paused: ${n.senderEmail} until ${until}. ${n.reason}`,
+      blocks: [
+        { type: 'header', text: { type: 'plain_text', text: '⏸ A sender was paused' } },
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*Sender*\n${n.senderEmail}` },
+            { type: 'mrkdwn', text: `*Paused until*\n${until}` },
+          ],
+        },
+        { type: 'section', text: { type: 'mrkdwn', text: `*Why:* ${n.reason}` } },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Its emails wait (nothing is dropped) and resume automatically, or resume it from the Senders page.' }] },
+      ],
+    });
+  }
+
   notifyRateLimit(n: RateLimitNotice): Promise<PostResult> {
-    const scopeLabel = { sender: 'Per-sender hourly limit', global: 'Global hourly limit', campaign: 'Campaign hourly limit' }[n.scope];
+    const scopeLabel = { sender: 'Per-sender hourly limit', global: 'Global hourly limit', campaign: 'Campaign hourly limit', daily: 'Warm-up daily limit' }[n.scope];
     const resumes = new Date(n.retryAt).toUTCString().replace(' GMT', ' UTC');
     return this.post(n.userId, {
       text: `🚦 Hourly limit reached for ${n.senderEmail} (${n.limit}/hour). Remaining emails resume at ${resumes}.`,

@@ -9,3 +9,4 @@ export * from './assistant.js';
 export * from './random.js';
 export * from './spintax.js';
 export * from './spam.js';
+export * from './senders.js';

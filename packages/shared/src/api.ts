@@ -35,4 +35,5 @@ export type Health = z.infer<typeof HealthSchema>;
 export type LiveEvent =
   | { type: 'email.updated'; emailId: string; campaignId: string; status: string }
   | { type: 'campaign.updated'; campaignId: string; status: string }
-  | { type: 'ratelimit.hit'; senderEmail: string; scope: 'global' | 'sender' | 'campaign'; limit: number; retryAt: string };
+  | { type: 'ratelimit.hit'; senderEmail: string; scope: 'global' | 'sender' | 'campaign' | 'daily'; limit: number; retryAt: string }
+  | { type: 'sender.paused'; senderEmail: string; until: string; reason: string };

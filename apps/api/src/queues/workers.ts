@@ -6,7 +6,7 @@ import { publishLive } from '../lib/live.js';
 import { QUEUES } from './names.js';
 import { createEmailProcessor, type ProcessorDeps, type ProcessResult } from './emailProcessor.js';
 import type { EmailSearch } from '../modules/search/emailSearch.js';
-import type { EmailJobData, IndexJobData, NotifyJobData, QueueSet } from './queues.js';
+import type { EmailJobData, IndexJobData, NotifyJobData, QueueSet, RateLimitNotice } from './queues.js';
 
 export function startEmailWorker(
   opts: { connection: Redis; prefix: string; concurrency: number },
@@ -27,7 +27,7 @@ export function startEmailWorker(
 
 /** Records the hit (audit + analytics) and hands off to the notifications queue. */
 export function rateLimitRecorder(prisma: PrismaClient, queues: QueueSet, redis?: Redis) {
-  return async (notice: NotifyJobData['notice']) => {
+  return async (notice: RateLimitNotice) => {
     await prisma.rateLimitEvent.upsert({
       where: {
         senderId_userId_scope_windowKey: {

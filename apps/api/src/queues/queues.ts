@@ -11,12 +11,13 @@ export type RateLimitNotice = {
   userId: string;
   senderId: string;
   senderEmail: string;
-  scope: 'global' | 'sender' | 'campaign';
+  scope: 'global' | 'sender' | 'campaign' | 'daily';
   limit: number;
   windowStart: string;
   retryAt: string;
 };
-export type NotifyJobData = { kind: 'rate-limit'; notice: RateLimitNotice };
+export type SenderPausedData = { senderId: string; senderEmail: string; userId: string; until: string; reason: string };
+export type NotifyJobData = { kind: 'rate-limit'; notice: RateLimitNotice } | { kind: 'sender-paused'; notice: SenderPausedData };
 export type IndexJobData = { emailIds: string[] };
 
 export type QueueSet = {

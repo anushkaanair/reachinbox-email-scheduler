@@ -51,6 +51,20 @@ model Sender {
   hourlyLimit Int?
   isActive    Boolean @default(true)
   emails      Email[]
+
+  /// Warm-up ramp: a daily cap that starts at warmupStart and grows by warmupIncrement per day
+  /// until warmupTarget, after which the cap lifts.
+  warmupEnabled       Boolean   @default(false)
+  warmupStartedAt     DateTime?
+  warmupStart         Int       @default(5)
+  warmupIncrement     Int       @default(5)
+  warmupTarget        Int       @default(50)
+
+  /// Circuit breaker: too many failures in a row (or a login error) pause the sender until pausedUntil.
+  consecutiveFailures Int       @default(0)
+  lastError           String?
+  pausedUntil         DateTime?
+  pauseReason         String?
 }
 
 /// Per-user do-not-contact list. Leads on it are skipped when a campaign is created.

@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, Layers, PenSquare, Send, Settings } from 'lucide-react';
+import { BarChart3, CalendarClock, HeartPulse, Layers, PenSquare, Send, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,7 @@ export function Sidebar() {
   const insights: NavItem[] = [
     { to: '/campaigns', label: 'Campaigns', icon: Layers },
     { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { to: '/senders', label: 'Senders', icon: HeartPulse },
   ];
 
   const renderItem = ({ to, label, icon: Icon, count }: NavItem) => (

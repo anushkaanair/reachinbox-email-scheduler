@@ -3,15 +3,20 @@ import type { EmailEventType, Prisma, PrismaClient } from '@prisma/client';
 import type { Logger } from 'pino';
 import type { SendFn } from '../mail/transport.js';
 import type { RateLimiter, Ticket } from '../throttle/rateLimiter.js';
-import { isInSendWindow, nextSendWindowStart, SendWindowSchema } from '@ri/shared';
-import { windowEnd, windowStart } from '../throttle/windows.js';
+import { isAuthError, isHardBounce, isInSendWindow, nextSendWindowStart, SendWindowSchema, warmupCap, warmupDay } from '@ri/shared';
+import { windowEnd } from '../throttle/windows.js';
 import type { EmailJobData, RateLimitNotice } from './queues.js';
 
 export type ProcessorConfig = {
   maxPerWindowGlobal: number;
   maxPerWindowPerSender: number;
   staleSendingMs: number;
+  /** Circuit breaker: pause a sender after this many failed sends in a row (0 = never). */
+  pauseAfterFailures?: number;
+  pauseMs?: number;
 };
+
+export type SenderPausedNotice = { senderId: string; senderEmail: string; userId: string; until: string; reason: string };
 
 export type ProcessorDeps = {
   prisma: PrismaClient;
@@ -23,6 +28,8 @@ export type ProcessorDeps = {
   onRateLimited: (notice: RateLimitNotice) => Promise<void>;
   /** Called after every status change (→ search re-index + live push). Failures never affect sending. */
   onEmailChanged?: (emailId: string, change: EmailChange) => Promise<void>;
+  /** Called when the circuit breaker pauses a sender (→ live toast + Slack). */
+  onSenderPaused?: (notice: SenderPausedNotice) => Promise<void>;
 };
 
 export type EmailChange = { userId: string; campaignId: string; status: string };
@@ -104,10 +111,25 @@ export function createEmailProcessor(deps: ProcessorDeps) {
       return delay(job, token, opens);
     }
 
+    // Circuit breaker: a paused sender's emails wait (no quota held) until the cool-down ends.
+    const pausedUntil = email.sender.pausedUntil?.getTime() ?? 0;
+    if (pausedUntil > now) {
+      await prisma.email.updateMany({ where: { id: emailId, status: { in: [...CLAIMABLE] } }, data: { nextAttemptAt: new Date(pausedUntil) } });
+      return delay(job, token, pausedUntil);
+    }
+
+    // Warm-up ramp: today's daily cap for this sender (none once warm-up is complete).
+    const s = email.sender;
+    const dailyCap =
+      s.warmupEnabled && s.warmupStartedAt
+        ? warmupCap({ start: s.warmupStart, increment: s.warmupIncrement, target: s.warmupTarget }, warmupDay(s.warmupStartedAt.getTime(), now, limiter.dayMs))
+        : null;
+
     const limits = {
       global: config.maxPerWindowGlobal,
       sender: email.sender.hourlyLimit ?? config.maxPerWindowPerSender,
       campaign: email.campaign.hourlyLimit,
+      daily: dailyCap ?? undefined,
     };
 
     // A ticket reserved earlier is only valid inside the window it was counted in.
@@ -130,7 +152,7 @@ export function createEmailProcessor(deps: ProcessorDeps) {
           limit: limits[res.scope],
           retryAt: new Date(res.retryAt).toISOString(),
         });
-        const scopeId = res.scope === 'global' ? 'all' : res.scope === 'sender' ? email.senderId : email.campaignId;
+        const scopeId = res.scope === 'global' ? 'all' : res.scope === 'campaign' ? email.campaignId : email.senderId;
         if (await limiter.firstHitInWindow(res.scope, scopeId, res.w)) {
           log.info({ scope: res.scope, retryAt: new Date(res.retryAt).toISOString() }, 'rate limit reached');
           await deps
@@ -139,8 +161,8 @@ export function createEmailProcessor(deps: ProcessorDeps) {
               senderId: email.senderId,
               senderEmail: email.sender.email,
               scope: res.scope,
-              limit: limits[res.scope],
-              windowStart: new Date(windowStart(res.w, limiter.opts.windowMs)).toISOString(),
+              limit: limits[res.scope] ?? 0,
+              windowStart: new Date(limiter.windowStartFor(res.scope, res.w)).toISOString(),
               retryAt: new Date(res.retryAt).toISOString(),
             })
             .catch((err) => log.error({ err }, 'rate-limit notification failed (send path unaffected)'));
@@ -195,12 +217,18 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         },
       });
       log.info({ to: email.toEmail, sender: email.sender.email }, 'email sent');
+      if (email.sender.consecutiveFailures > 0) {
+        await prisma.sender.updateMany({ where: { id: email.senderId }, data: { consecutiveFailures: 0 } }).catch(() => undefined);
+      }
       await changed(email, 'SENT', 'SENT', { sender: email.sender.email, previewUrl: result.previewUrl });
       return { outcome: 'sent' };
     } catch (err) {
       await limiter.refund(ticket, email.senderId, email.campaignId);
-      const final = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       const message = err instanceof Error ? err.message : String(err);
+      // A hard bounce (recipient doesn't exist / rejected) will never succeed: fail it now, no retries.
+      const bounce = isHardBounce(message);
+      const final = bounce || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+      await recordSenderFailure(email, message, bounce);
       await prisma.email.update({
         where: { id: emailId },
         data: final
@@ -214,7 +242,48 @@ export function createEmailProcessor(deps: ProcessorDeps) {
         final,
       });
       log.warn({ err: message, final, attempt: job.attemptsMade + 1 }, 'send failed');
+      if (bounce) {
+        await job.discard(); // stop BullMQ from retrying a permanent failure
+        // Protect the sender: never email a bounced address again (the campaign owner's do-not-contact list).
+        await prisma.suppressedEmail
+          .upsert({ where: { userId_email: { userId: email.campaign.userId, email: email.toEmail } }, create: { userId: email.campaign.userId, email: email.toEmail }, update: {} })
+          .catch(() => undefined);
+      }
       throw err; // BullMQ applies exponential backoff; FAILED after the last attempt
     }
   };
+
+  /**
+   * Circuit breaker bookkeeping. Sender-side failures count toward a pause; a hard bounce is the
+   * recipient's problem, so it doesn't. A login error pauses immediately — retrying can't fix it.
+   */
+  async function recordSenderFailure(email: { senderId: string; sender: { email: string }; campaign: { userId: string } }, message: string, bounce: boolean) {
+    try {
+      if (bounce) {
+        await prisma.sender.update({ where: { id: email.senderId }, data: { lastError: message.slice(0, 500) } });
+        return;
+      }
+      const updated = await prisma.sender.update({
+        where: { id: email.senderId },
+        data: { consecutiveFailures: { increment: 1 }, lastError: message.slice(0, 500) },
+      });
+      const threshold = config.pauseAfterFailures ?? 0;
+      const auth = isAuthError(message);
+      const alreadyPaused = (updated.pausedUntil?.getTime() ?? 0) > Date.now();
+      if (alreadyPaused || (!auth && (threshold <= 0 || updated.consecutiveFailures < threshold))) return;
+      const until = new Date(Date.now() + (config.pauseMs ?? 30 * 60_000));
+      const reason = auth ? `Login rejected by the SMTP server: ${message.slice(0, 160)}` : `${updated.consecutiveFailures} sends in a row failed (last: ${message.slice(0, 160)})`;
+      // Only one worker wins the pause (conditional update), so the alert fires once.
+      const won = await prisma.sender.updateMany({
+        where: { id: email.senderId, OR: [{ pausedUntil: null }, { pausedUntil: { lt: new Date() } }] },
+        data: { pausedUntil: until, pauseReason: reason },
+      });
+      if (won.count === 1) {
+        logger.warn({ sender: email.sender.email, until: until.toISOString(), reason }, 'sender paused by circuit breaker');
+        await deps.onSenderPaused?.({ senderId: email.senderId, senderEmail: email.sender.email, userId: email.campaign.userId, until: until.toISOString(), reason }).catch(() => undefined);
+      }
+    } catch (e) {
+      logger.warn({ err: e }, 'recording sender failure failed (send path unaffected)');
+    }
+  }
 }

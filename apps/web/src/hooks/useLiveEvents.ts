@@ -51,10 +51,16 @@ export function useLiveEvents() {
         return;
       }
       if (ev.type === 'ratelimit.hit') {
-        const what = ev.scope === 'sender' ? ev.senderEmail : ev.scope === 'campaign' ? 'Campaign' : 'Global';
-        toast.warning(`Hourly limit reached · ${what}`, {
-          description: `Limit ${ev.limit}/hour. Remaining emails keep their order and resume ${formatWhen(ev.retryAt)}.`,
+        const what = ev.scope === 'sender' || ev.scope === 'daily' ? ev.senderEmail : ev.scope === 'campaign' ? 'Campaign' : 'Global';
+        toast.warning(`${ev.scope === 'daily' ? 'Warm-up daily limit' : 'Hourly limit'} reached · ${what}`, {
+          description: `Limit ${ev.limit}/${ev.scope === 'daily' ? 'day' : 'hour'}. Remaining emails keep their order and resume ${formatWhen(ev.retryAt)}.`,
           duration: 8000,
+        });
+      }
+      if (ev.type === 'sender.paused') {
+        toast.error(`Sender paused · ${ev.senderEmail}`, {
+          description: `${ev.reason} Its emails wait and resume ${formatWhen(ev.until)} (or resume it on the Senders page).`,
+          duration: 10000,
         });
       }
       refresh();

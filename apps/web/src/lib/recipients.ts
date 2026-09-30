@@ -72,3 +72,10 @@ export async function addFile(cur: Recipients, file: File): Promise<FileResult> 
 }
 
 export const removeLead = (cur: Recipients, email: string): Recipients => ({ ...cur, leads: cur.leads.filter((l) => l.email !== email) });
+
+/** Rebuild the recipients state from saved leads (e.g. a draft): merge tags come from the columns they carry. */
+export function recipientsFromLeads(leads: Lead[]): Recipients {
+  const tags = new Set(['email', 'name']);
+  for (const l of leads) for (const k of Object.keys(l.vars ?? {})) tags.add(k);
+  return { leads, tags: [...tags], invalid: [], duplicates: 0, truncated: false, fileName: null };
+}

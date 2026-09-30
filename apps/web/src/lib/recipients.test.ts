@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_RECIPIENTS, addFile, addTyped, removeLead } from './recipients';
+import { EMPTY_RECIPIENTS, addFile, addTyped, recipientsFromLeads, removeLead } from './recipients';
 
 const file = (name: string, text: string, size = text.length) => Object.defineProperty(new File([text], name), 'size', { value: size });
 
@@ -41,5 +41,14 @@ describe('removeLead', () => {
   it('removes one address', () => {
     const a = addTyped(EMPTY_RECIPIENTS, 'a@x.dev b@x.dev').next;
     expect(removeLead(a, 'a@x.dev').leads.map((l) => l.email)).toEqual(['b@x.dev']);
+  });
+});
+
+describe('recipientsFromLeads', () => {
+  it('restores the list and the merge tags its columns provide', () => {
+    const r = recipientsFromLeads([{ email: 'a@x.dev', vars: { company: 'Acme' } }, { email: 'b@x.dev', vars: { role: 'CTO' } }]);
+    expect(r.leads).toHaveLength(2);
+    expect(r.tags).toEqual(['email', 'name', 'company', 'role']);
+    expect(r).toMatchObject({ invalid: [], duplicates: 0, truncated: false, fileName: null });
   });
 });

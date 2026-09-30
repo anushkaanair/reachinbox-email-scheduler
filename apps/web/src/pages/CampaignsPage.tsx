@@ -1,4 +1,4 @@
-import { AlertTriangle, Ban, Download, Layers, Pause, Play, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Ban, Download, FileEdit, Layers, Pause, Play, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useRetryFailed } from '@/hooks/useCompose';
+import { useDeleteDraft, useDrafts } from '@/hooks/useDrafts';
 import { useCampaignAction, useCampaigns } from '@/hooks/useInsights';
 import { formatWhen, relative } from '@/lib/format';
 
@@ -131,6 +132,32 @@ function CampaignCard({
   );
 }
 
+/** Saved compose forms. They are only data: nothing here has been scheduled or can be sent until you open one and send it. */
+function DraftsSection() {
+  const { data } = useDrafts();
+  const del = useDeleteDraft();
+  if (!data || data.length === 0) return null;
+  return (
+    <section aria-labelledby="drafts-h" className="mb-6">
+      <h2 id="drafts-h" className="mb-2 flex items-center gap-2 text-sm font-semibold"><FileEdit className="size-4 text-muted" aria-hidden /> Drafts <span className="font-normal text-muted">({data.length})</span></h2>
+      <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+        {data.map((d) => (
+          <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{d.title}</p>
+              <p className="text-xs text-muted">{nf.format(d.recipients)} recipient{d.recipients === 1 ? '' : 's'} · saved {relative(d.updatedAt)}</p>
+            </div>
+            <Link to={`/compose?draft=${d.id}`} className={buttonClass('secondary', 'sm')}>Continue</Link>
+            <Button size="sm" variant="ghost" loading={del.isPending && del.variables === d.id} onClick={() => del.mutate(d.id, { onSuccess: () => toast('Draft deleted') })} aria-label={`Delete draft “${d.title}”`}>
+              <Trash2 className="size-4" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Feature F3: campaign overview with live progress and Pause / Resume / Cancel. */
 export function CampaignsPage() {
   const { data, isPending, error, refetch } = useCampaigns();
@@ -148,6 +175,7 @@ export function CampaignsPage() {
     <div className="mx-auto max-w-5xl">
       <h1 className="text-2xl font-bold tracking-tight">Campaigns</h1>
       <p className="mb-5 text-sm text-muted">Live progress for every campaign. Pausing keeps each email’s place in line.</p>
+      <DraftsSection />
 
       {error ? (
         <EmptyState tone="danger" icon={AlertTriangle} title="Couldn’t load campaigns" description={error.message}

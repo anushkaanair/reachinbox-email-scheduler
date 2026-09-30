@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, ArrowLeft, CalendarClock } from 'lucide-react';
-import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { applySpamFix, htmlToText, isHtmlEmpty, spintaxError, type SpamField } from '@ri/shared';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { applySpamFix, htmlToText, isHtmlEmpty, spintaxError, type DraftPayload, type SpamField } from '@ri/shared';
 import { Controller, useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ApiError } from '@/api/client';
@@ -19,9 +19,10 @@ import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Field';
 import { usePreflight, useSuppressions } from '@/hooks/useCompose';
 import { useScheduleCampaign, useSenders } from '@/hooks/useCampaigns';
+import { useDeleteDraft, useDraft, useSaveDraft } from '@/hooks/useDrafts';
 import { useDebounced } from '@/hooks/useIntegrations';
 import { formatWhen } from '@/lib/format';
-import { EMPTY_RECIPIENTS, type Recipients } from '@/lib/recipients';
+import { EMPTY_RECIPIENTS, recipientsFromLeads, type Recipients } from '@/lib/recipients';
 import { estimateFinish, toLocalInput } from '@/lib/schedule';
 
 const spintaxRefine = (v: string, ctx: z.RefinementCtx) => {
@@ -70,6 +71,12 @@ export function ComposePage() {
   const [recipients, setRecipients] = useState<Recipients>(EMPTY_RECIPIENTS);
   const [sendAt, setSendAt] = useState<Date | null>(null); // null = send straight away
   const files = useAttachments();
+  const [urlParams] = useSearchParams();
+  const [draftId, setDraftId] = useState<string | null>(urlParams.get('draft'));
+  const loadedDraft = useRef<string | null>(null);
+  const draft = useDraft(urlParams.get('draft'));
+  const saveDraft = useSaveDraft();
+  const removeDraft = useDeleteDraft();
   const [leadsError, setLeadsError] = useState<string>();
   const [leadsKey, setLeadsKey] = useState(''); // identifies the uploaded list in the forecast cache
   const [rules, setRules] = useState<Rules>(defaultRules);
@@ -154,6 +161,39 @@ export function ComposePage() {
   const insertText = (snippet: string) => editor.current?.insertText(snippet);
   const insertTag = (tag: string) => insertText(`{{${tag}}}`);
 
+  // Opening a draft fills the whole form exactly as it was saved (attachments are not kept in drafts).
+  useEffect(() => {
+    const d = draft.data;
+    if (!d || loadedDraft.current === d.id) return;
+    loadedDraft.current = d.id;
+    const p = d.payload;
+    const when = p.sendAt && new Date(p.sendAt).getTime() > Date.now() ? new Date(p.sendAt) : null;
+    form.reset({ senderId: p.senderId, subject: p.subject, body: p.body, startAt: toLocalInput(when ?? new Date()), delayBetweenSeconds: p.delayBetweenSeconds, hourlyLimit: p.hourlyLimit, jitterPercent: p.jitterPercent });
+    setRecipients(recipientsFromLeads(p.leads));
+    setLeadsKey(crypto.randomUUID());
+    setSendAt(when);
+    if (p.rules) setRules({ ...defaultRules(), ...p.rules });
+    setDraftId(d.id);
+  }, [draft.data, form]);
+
+  const snapshot = (): DraftPayload => ({
+    senderId,
+    subject,
+    body,
+    leads: recipients.leads,
+    sendAt: sendAt ? sendAt.toISOString() : null,
+    delayBetweenSeconds: Math.max(0, Math.floor(Number(delay) || 0)),
+    hourlyLimit: Math.max(1, Math.floor(Number(hourly) || 1)),
+    jitterPercent: Math.min(50, Math.max(0, Math.floor(Number(jitter) || 0))),
+    rules,
+  });
+
+  const save = () =>
+    saveDraft.mutate(
+      { id: draftId, payload: snapshot() },
+      { onSuccess: (d) => { setDraftId(d.id); toast.success('Draft saved', { description: files.items.length ? 'Attachments aren’t kept in drafts; add them again when you send.' : undefined }); }, onError: (e) => toast.error(e.message) },
+    );
+
   const NO_LEADS = 'Upload a CSV or TXT file with at least one email address';
   const submitValid = handleSubmit((v) => {
     if (!leads?.leads.length) return setLeadsError(NO_LEADS);
@@ -176,6 +216,7 @@ export function ComposePage() {
       },
       {
         onSuccess: (res) => {
+          if (draftId) removeDraft.mutate(draftId); // it has been sent on; the draft is done
           const extras = [
             res.invalid.length ? `${res.invalid.length} invalid skipped` : '',
             res.duplicates ? `${res.duplicates} duplicates removed` : '',
@@ -368,6 +409,9 @@ export function ComposePage() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </Select>
+            <Button variant="ghost" loading={saveDraft.isPending} onClick={save} className="w-full">
+              {draftId ? 'Save changes to draft' : 'Save as draft'}
+            </Button>
             <Button type="submit" variant="secondary" loading={schedule.isPending} disabled={blocked} className="w-full rounded-full border-brand-600 text-brand-600 hover:bg-brand-50">
               <CalendarClock className="size-4" aria-hidden /> Schedule {leads ? nf.format(sendable) : ''} email{sendable === 1 ? '' : 's'}
             </Button>

@@ -25,6 +25,7 @@ model User {
   suppressed       SuppressedEmail[]
   assistantActions AssistantAction[]
   attachments      Attachment[]
+  drafts           Draft[]
   /// First-run onboarding answers, tour progress and checklist state (see shared/onboarding.ts). Null = not seen yet.
   onboarding       Json?
 }
@@ -119,6 +120,20 @@ model AssistantAction {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// A compose form saved for later. It is only data: a draft has no emails and no jobs, so nothing can be sent from
+/// one, and the scheduler never sees it. Scheduling from the form deletes it.
+model Draft {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  payload   Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([userId, updatedAt])
 }
 
 model Campaign {
